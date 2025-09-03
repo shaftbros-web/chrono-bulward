@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward - フェーズ1 改良版</title>
+<title>Chrono Bulward - フェーズ1 ダメージ演出</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:block; margin:0 auto; border:2px solid #000; }
@@ -30,10 +30,10 @@ let enemyBaseHP = 100;
 let playerUnits = [];
 let enemyUnits = [];
 let projectiles = []; // 矢リスト
-let slashes = [];    // 近接攻撃の斬撃エフェクト
+let hitMarks = [];    // 被弾時エフェクト
 let pendingUnitType = null;
 
-// ユニット定義（スピード1/4、ゴブリンHP 1.5倍）
+// ユニット定義
 const unitStats = {
   swordsman: { hp: 120, atk: 10, speed: 0.25, type: "melee", color: "blue" },
   archer:    { hp: 80, atk: 8,  speed: 0.25, type: "archer", color: "cyan" },
@@ -53,7 +53,7 @@ class Unit {
     this.role = unitStats[type].type;
     this.color = unitStats[type].color;
     this.target = null;
-    this.cooldown = 0; // 攻撃間隔
+    this.cooldown = 0;
   }
   draw() {
     ctx.fillStyle = this.color;
@@ -71,12 +71,9 @@ class Unit {
 
 class Projectile {
   constructor(x,y,target,atk) {
-    this.x = x;
-    this.y = y;
-    this.target = target;
-    this.atk = atk;
-    this.speed = 3;
-    this.active = true;
+    this.x = x; this.y = y;
+    this.target = target; this.atk = atk;
+    this.speed = 3; this.active = true;
   }
   update() {
     if (!this.target || this.target.hp<=0) { this.active=false; return; }
@@ -85,6 +82,7 @@ class Projectile {
     let dist = Math.sqrt(dx*dx+dy*dy);
     if (dist < 5) {
       this.target.hp -= this.atk;
+      hitMarks.push(new HitMark(this.target.x,this.target.y));
       this.active=false;
     } else {
       this.x += (dx/dist)*this.speed;
@@ -100,27 +98,27 @@ class Projectile {
   }
 }
 
-// 近接攻撃の斬撃エフェクト
-class Slash {
-  constructor(x,y,color) {
-    this.x = x;
-    this.y = y;
-    this.color = color;
-    this.life = 15; // 表示時間
+// 被弾時の斜線エフェクト
+class HitMark {
+  constructor(x,y) {
+    this.x = x; this.y = y;
+    this.life = 15;
   }
   update() { this.life--; }
   draw() {
-    ctx.strokeStyle=this.color;
+    ctx.strokeStyle="red";
+    ctx.lineWidth=3;
     ctx.beginPath();
-    ctx.moveTo(this.x-8,this.y-8);
-    ctx.lineTo(this.x+8,this.y+8);
+    ctx.moveTo(this.x-10,this.y-10);
+    ctx.lineTo(this.x+10,this.y+10);
+    ctx.moveTo(this.x+10,this.y-10);
+    ctx.lineTo(this.x-10,this.y+10);
     ctx.stroke();
+    ctx.lineWidth=1;
   }
 }
 
-function chooseUnit(type) {
-  pendingUnitType = type;
-}
+function chooseUnit(type) { pendingUnitType = type; }
 
 canvas.addEventListener("click", (e)=>{
   if (!pendingUnitType) return;
@@ -165,28 +163,25 @@ function loop() {
 
   // 更新・描画
   for (let u of [...playerUnits,...enemyUnits]) {
-    u.update();
-    u.draw();
+    u.update(); u.draw();
   }
 
   // 戦闘処理
   for (let p of playerUnits) {
     for (let e of enemyUnits) {
-      // 近接戦闘
       if (inMeleeRange(p,e)) {
         p.target = e; e.target = p;
         if (p.cooldown<=0) {
           e.hp -= p.atk;
-          slashes.push(new Slash(p.x,p.y,"cyan")); // 剣士斬撃
+          hitMarks.push(new HitMark(e.x,e.y));
           p.cooldown=30;
         }
         if (e.cooldown<=0) {
           p.hp -= e.atk;
-          slashes.push(new Slash(e.x,e.y,"orange")); // ゴブリン攻撃
+          hitMarks.push(new HitMark(p.x,p.y));
           e.cooldown=40;
         }
       }
-      // 弓兵の遠隔攻撃
       if (p.role==="archer" && inArcherRange(p,e)) {
         if (p.cooldown<=0) {
           projectiles.push(new Projectile(p.x,p.y-12,e,p.atk));
@@ -201,13 +196,13 @@ function loop() {
     if (u.cooldown>0) u.cooldown--;
   }
 
-  // 矢の処理
+  // 矢処理
   for (let pr of projectiles) { pr.update(); pr.draw(); }
   projectiles = projectiles.filter(pr=>pr.active);
 
-  // 斬撃エフェクト処理
-  for (let s of slashes) { s.update(); s.draw(); }
-  slashes = slashes.filter(s=>s.life>0);
+  // 被弾エフェクト処理
+  for (let h of hitMarks) { h.update(); h.draw(); }
+  hitMarks = hitMarks.filter(h=>h.life>0);
 
   // 死亡処理
   playerUnits = playerUnits.filter(u=>u.hp>0 && u.y>0);
@@ -224,13 +219,11 @@ function loop() {
   // 勝敗判定
   if (playerBaseHP<=0) {
     ctx.fillStyle="red"; ctx.font="30px sans-serif";
-    ctx.fillText("GAME OVER",100,300);
-    return;
+    ctx.fillText("GAME OVER",100,300); return;
   }
   if (enemyBaseHP<=0) {
     ctx.fillStyle="yellow"; ctx.font="30px sans-serif";
-    ctx.fillText("VICTORY!",120,300);
-    return;
+    ctx.fillText("VICTORY!",120,300); return;
   }
 
   requestAnimationFrame(loop);
