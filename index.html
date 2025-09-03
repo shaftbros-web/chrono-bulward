@@ -122,4 +122,27 @@ function loop() {
 
   // 拠点到達処理
   for (let u of enemyUnits) {
-    if (u.x<=30) {
+    if (u.x<=30) { playerBaseHP-=u.atk; u.hp=0; }
+  }
+  for (let u of playerUnits) {
+    if (u.x>=canvas.width-30) { enemyBaseHP-=u.atk; u.hp=0; }
+  }
+
+  // 勝敗判定
+  if (playerBaseHP<=0) {
+    ctx.fillStyle="red"; ctx.font="30px sans-serif";
+    ctx.fillText("GAME OVER",150,160);
+    return;
+  }
+  if (enemyBaseHP<=0) {
+    ctx.fillStyle="yellow"; ctx.font="30px sans-serif";
+    ctx.fillText("VICTORY!",150,160);
+    return;
+  }
+
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
