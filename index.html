@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward - フェーズ1 弓矢アニメーション</title>
+<title>Chrono Bulward - フェーズ1 改良版</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:block; margin:0 auto; border:2px solid #000; }
@@ -29,14 +29,15 @@ let enemyBaseHP = 100;
 
 let playerUnits = [];
 let enemyUnits = [];
-let projectiles = []; // 矢のリスト
+let projectiles = []; // 矢リスト
+let slashes = [];    // 近接攻撃の斬撃エフェクト
 let pendingUnitType = null;
 
-// ユニット定義（さらにスピード半分）
+// ユニット定義（スピード1/4、ゴブリンHP 1.5倍）
 const unitStats = {
   swordsman: { hp: 120, atk: 10, speed: 0.25, type: "melee", color: "blue" },
   archer:    { hp: 80, atk: 8,  speed: 0.25, type: "archer", color: "cyan" },
-  goblin:    { hp: 40, atk: 5,  speed: 0.2,  type: "melee", color: "red" }
+  goblin:    { hp: 60, atk: 5,  speed: 0.2,  type: "melee", color: "red" }
 };
 
 class Unit {
@@ -52,7 +53,7 @@ class Unit {
     this.role = unitStats[type].type;
     this.color = unitStats[type].color;
     this.target = null;
-    this.cooldown = 0; // 攻撃間隔管理
+    this.cooldown = 0; // 攻撃間隔
   }
   draw() {
     ctx.fillStyle = this.color;
@@ -61,8 +62,7 @@ class Unit {
     ctx.fill();
   }
   update() {
-    // 戦闘中なら移動停止
-    if (this.target && this.target.hp > 0) return;
+    if (this.target && this.target.hp > 0) return; // 戦闘中は停止
     this.target = null;
     if (this.side==="player") this.y -= this.speed;
     else this.y += this.speed;
@@ -100,12 +100,28 @@ class Projectile {
   }
 }
 
-// ボタンで召喚ユニット選択
+// 近接攻撃の斬撃エフェクト
+class Slash {
+  constructor(x,y,color) {
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    this.life = 15; // 表示時間
+  }
+  update() { this.life--; }
+  draw() {
+    ctx.strokeStyle=this.color;
+    ctx.beginPath();
+    ctx.moveTo(this.x-8,this.y-8);
+    ctx.lineTo(this.x+8,this.y+8);
+    ctx.stroke();
+  }
+}
+
 function chooseUnit(type) {
   pendingUnitType = type;
 }
 
-// キャンバスタップでレーン決定
 canvas.addEventListener("click", (e)=>{
   if (!pendingUnitType) return;
   const rect = canvas.getBoundingClientRect();
@@ -121,21 +137,18 @@ setInterval(()=>{
   enemyUnits.push(new Unit("goblin","enemy",lane,40));
 },3000);
 
-// 近接戦闘判定
+// 判定関数
 function inMeleeRange(u1,u2,range=25) {
   return (Math.abs(u1.lane - u2.lane) <= 1 && Math.abs(u1.y - u2.y) <= range);
 }
-
-// 弓兵の射程判定（縦横3マス以内）
 function inArcherRange(u1,u2) {
   return (Math.abs(u1.lane - u2.lane) <= 3 && Math.abs(u1.y - u2.y) <= 120);
 }
 
-// メインループ
 function loop() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // レーン区切り線
+  // レーン区切り
   ctx.strokeStyle="#555";
   for (let i=1;i<lanes;i++) {
     ctx.beginPath();
@@ -161,32 +174,40 @@ function loop() {
     for (let e of enemyUnits) {
       // 近接戦闘
       if (inMeleeRange(p,e)) {
-        p.target = e;
-        e.target = p;
-        p.hp -= e.atk*0.05;
-        e.hp -= p.atk*0.05;
+        p.target = e; e.target = p;
+        if (p.cooldown<=0) {
+          e.hp -= p.atk;
+          slashes.push(new Slash(p.x,p.y,"cyan")); // 剣士斬撃
+          p.cooldown=30;
+        }
+        if (e.cooldown<=0) {
+          p.hp -= e.atk;
+          slashes.push(new Slash(e.x,e.y,"orange")); // ゴブリン攻撃
+          e.cooldown=40;
+        }
       }
-      // 弓兵の遠隔攻撃（クールダウン付き）
+      // 弓兵の遠隔攻撃
       if (p.role==="archer" && inArcherRange(p,e)) {
-        if (p.cooldown <= 0) {
+        if (p.cooldown<=0) {
           projectiles.push(new Projectile(p.x,p.y-12,e,p.atk));
-          p.cooldown = 60; // 約1秒のクールダウン
+          p.cooldown = 60;
         }
       }
     }
   }
 
   // クールダウン減少
-  for (let p of playerUnits) {
-    if (p.cooldown>0) p.cooldown--;
+  for (let u of [...playerUnits,...enemyUnits]) {
+    if (u.cooldown>0) u.cooldown--;
   }
 
-  // 矢の更新・描画
-  for (let pr of projectiles) {
-    pr.update();
-    pr.draw();
-  }
+  // 矢の処理
+  for (let pr of projectiles) { pr.update(); pr.draw(); }
   projectiles = projectiles.filter(pr=>pr.active);
+
+  // 斬撃エフェクト処理
+  for (let s of slashes) { s.update(); s.draw(); }
+  slashes = slashes.filter(s=>s.life>0);
 
   // 死亡処理
   playerUnits = playerUnits.filter(u=>u.hp>0 && u.y>0);
