@@ -3,232 +3,189 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward - フェーズ1 ダメージ演出</title>
+<title>Chrono Bulward</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
-  #gameCanvas { background:#333; display:block; margin:0 auto; border:2px solid #000; }
-  #ui { margin-top:8px; }
-  button { margin:4px; padding:8px 16px; font-size:16px; }
+  #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
+  #menu, #settings { margin-top:20px; }
+  h1 { margin:20px; }
+  h2 { margin-top:30px; }
+  .unit-settings { border:1px solid #555; padding:10px; margin:10px auto; width:90%; max-width:400px; text-align:left; }
+  input[type=range] { width:200px; }
 </style>
 </head>
 <body>
-<h1>Chrono Bulward - フェーズ1</h1>
-<canvas id="gameCanvas" width="400" height="600"></canvas>
-<div id="ui">
-  <button onclick="chooseUnit('swordsman')">剣士召喚</button>
-  <button onclick="chooseUnit('archer')">弓兵召喚</button>
+<h1 id="title">Chrono Bulward</h1>
+
+<div id="menu">
+  <button onclick="startGame()">ゲーム開始</button>
+  <button onclick="showSettings()">設定</button>
 </div>
+
+<div id="settings" style="display:none;">
+  <h2>ユニット調整</h2>
+
+  <!-- プレイヤーユニット -->
+  <div class="unit-settings">
+    <h3>剣士</h3>
+    HP: <input type="range" id="swordsman_hp" min="50" max="300" value="120" oninput="updateLabel('swordsman_hp')">
+    <span id="swordsman_hp_val">120</span><br>
+    攻撃力: <input type="range" id="swordsman_atk" min="5" max="30" value="10" oninput="updateLabel('swordsman_atk')">
+    <span id="swordsman_atk_val">10</span><br>
+    速度: <input type="range" id="swordsman_spd" min="0.1" max="1.0" step="0.05" value="0.25" oninput="updateLabel('swordsman_spd')">
+    <span id="swordsman_spd_val">0.25</span>
+  </div>
+
+  <div class="unit-settings">
+    <h3>弓兵</h3>
+    HP: <input type="range" id="archer_hp" min="40" max="200" value="80" oninput="updateLabel('archer_hp')">
+    <span id="archer_hp_val">80</span><br>
+    攻撃力: <input type="range" id="archer_atk" min="5" max="30" value="8" oninput="updateLabel('archer_atk')">
+    <span id="archer_atk_val">8</span><br>
+    速度: <input type="range" id="archer_spd" min="0.1" max="1.0" step="0.05" value="0.25" oninput="updateLabel('archer_spd')">
+    <span id="archer_spd_val">0.25</span>
+  </div>
+
+  <div class="unit-settings">
+    <h3>回復役</h3>
+    HP: <input type="range" id="healer_hp" min="40" max="200" value="100" oninput="updateLabel('healer_hp')">
+    <span id="healer_hp_val">100</span><br>
+    回復量: <input type="range" id="healer_atk" min="5" max="30" value="10" oninput="updateLabel('healer_atk')">
+    <span id="healer_atk_val">10</span><br>
+    速度: <input type="range" id="healer_spd" min="0.1" max="1.0" step="0.05" value="0.25" oninput="updateLabel('healer_spd')">
+    <span id="healer_spd_val">0.25</span>
+  </div>
+
+  <!-- 敵ユニット -->
+  <div class="unit-settings">
+    <h3>ゴブリン</h3>
+    HP: <input type="range" id="goblin_hp" min="20" max="200" value="60" oninput="updateLabel('goblin_hp')">
+    <span id="goblin_hp_val">60</span><br>
+    攻撃力: <input type="range" id="goblin_atk" min="2" max="20" value="5" oninput="updateLabel('goblin_atk')">
+    <span id="goblin_atk_val">5</span><br>
+    速度: <input type="range" id="goblin_spd" min="0.1" max="1.0" step="0.05" value="0.2" oninput="updateLabel('goblin_spd')">
+    <span id="goblin_spd_val">0.2</span>
+  </div>
+
+  <div class="unit-settings">
+    <h3>オーク</h3>
+    HP: <input type="range" id="orc_hp" min="100" max="500" value="200" oninput="updateLabel('orc_hp')">
+    <span id="orc_hp_val">200</span><br>
+    攻撃力: <input type="range" id="orc_atk" min="10" max="50" value="15" oninput="updateLabel('orc_atk')">
+    <span id="orc_atk_val">15</span><br>
+    速度: <input type="range" id="orc_spd" min="0.05" max="0.5" step="0.05" value="0.2" oninput="updateLabel('orc_spd')">
+    <span id="orc_spd_val">0.2</span>
+  </div>
+
+  <div class="unit-settings">
+    <h3>ゴーレム</h3>
+    HP: <input type="range" id="golem_hp" min="200" max="1000" value="400" oninput="updateLabel('golem_hp')">
+    <span id="golem_hp_val">400</span><br>
+    攻撃力: <input type="range" id="golem_atk" min="10" max="50" value="20" oninput="updateLabel('golem_atk')">
+    <span id="golem_atk_val">20</span><br>
+    速度: <input type="range" id="golem_spd" min="0.05" max="0.3" step="0.05" value="0.1" oninput="updateLabel('golem_spd')">
+    <span id="golem_spd_val">0.1</span>
+  </div>
+
+  <div class="unit-settings">
+    <h3>シャーマン</h3>
+    HP: <input type="range" id="shaman_hp" min="50" max="250" value="120" oninput="updateLabel('shaman_hp')">
+    <span id="shaman_hp_val">120</span><br>
+    攻撃力: <input type="range" id="shaman_atk" min="5" max="30" value="12" oninput="updateLabel('shaman_atk')">
+    <span id="shaman_atk_val">12</span><br>
+    速度: <input type="range" id="shaman_spd" min="0.1" max="0.5" step="0.05" value="0.25" oninput="updateLabel('shaman_spd')">
+    <span id="shaman_spd_val">0.25</span>
+  </div>
+
+  <div class="unit-settings">
+    <h3>ウルフ</h3>
+    HP: <input type="range" id="wolf_hp" min="30" max="150" value="80" oninput="updateLabel('wolf_hp')">
+    <span id="wolf_hp_val">80</span><br>
+    攻撃力: <input type="range" id="wolf_atk" min="5" max="25" value="10" oninput="updateLabel('wolf_atk')">
+    <span id="wolf_atk_val">10</span><br>
+    速度: <input type="range" id="wolf_spd" min="0.2" max="1.0" step="0.05" value="0.5" oninput="updateLabel('wolf_spd')">
+    <span id="wolf_spd_val">0.5</span>
+  </div>
+
+  <!-- ボス -->
+  <div class="unit-settings">
+    <h3>巨大オーガ（ボス）</h3>
+    HP: <input type="range" id="ogre_hp" min="200" max="2000" value="600" oninput="updateLabel('ogre_hp')">
+    <span id="ogre_hp_val">600</span><br>
+    攻撃力: <input type="range" id="ogre_atk" min="20" max="200" value="40" oninput="updateLabel('ogre_atk')">
+    <span id="ogre_atk_val">40</span>
+  </div>
+
+  <div class="unit-settings">
+    <h3>邪竜（ボス）</h3>
+    HP: <input type="range" id="dragon_hp" min="500" max="5000" value="1500" oninput="updateLabel('dragon_hp')">
+    <span id="dragon_hp_val">1500</span><br>
+    攻撃力: <input type="range" id="dragon_atk" min="50" max="500" value="100" oninput="updateLabel('dragon_atk')">
+    <span id="dragon_atk_val">100</span>
+  </div>
+
+  <br>
+  <button onclick="backToMenu()">戻る</button>
+  <button onclick="applySettingsAndStart()">ゲーム開始</button>
+</div>
+
+<canvas id="gameCanvas" width="400" height="600"></canvas>
+
 <script>
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-
-const lanes = 5;
-const laneWidth = canvas.width / lanes;
-let playerBaseHP = 100;
-let enemyBaseHP = 100;
-
-let playerUnits = [];
-let enemyUnits = [];
-let projectiles = []; // 矢リスト
-let hitMarks = [];    // 被弾時エフェクト
-let pendingUnitType = null;
-
-// ユニット定義
-const unitStats = {
-  swordsman: { hp: 120, atk: 10, speed: 0.25, type: "melee", color: "blue" },
-  archer:    { hp: 80, atk: 8,  speed: 0.25, type: "archer", color: "cyan" },
-  goblin:    { hp: 60, atk: 5,  speed: 0.2,  type: "melee", color: "red" }
+let unitStats = {
+  swordsman:{hp:120, atk:10, speed:0.25},
+  archer:{hp:80, atk:8, speed:0.25},
+  healer:{hp:100, atk:10, speed:0.25}, // atk=回復量
+  goblin:{hp:60, atk:5, speed:0.2},
+  orc:{hp:200, atk:15, speed:0.2},
+  golem:{hp:400, atk:20, speed:0.1},
+  shaman:{hp:120, atk:12, speed:0.25},
+  wolf:{hp:80, atk:10, speed:0.5},
+  ogre:{hp:600, atk:40},
+  dragon:{hp:1500, atk:100}
 };
 
-class Unit {
-  constructor(type, side, lane, y) {
-    this.type = type;
-    this.side = side;
-    this.lane = lane;
-    this.x = lane * laneWidth + laneWidth/2;
-    this.y = y;
-    this.hp = unitStats[type].hp;
-    this.atk = unitStats[type].atk;
-    this.speed = unitStats[type].speed;
-    this.role = unitStats[type].type;
-    this.color = unitStats[type].color;
-    this.target = null;
-    this.cooldown = 0;
-  }
-  draw() {
-    ctx.fillStyle = this.color;
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, 12, 0, Math.PI*2);
-    ctx.fill();
-  }
-  update() {
-    if (this.target && this.target.hp > 0) return; // 戦闘中は停止
-    this.target = null;
-    if (this.side==="player") this.y -= this.speed;
-    else this.y += this.speed;
-  }
+// ラベル更新
+function updateLabel(id){
+  document.getElementById(id+"_val").innerText = document.getElementById(id).value;
 }
 
-class Projectile {
-  constructor(x,y,target,atk) {
-    this.x = x; this.y = y;
-    this.target = target; this.atk = atk;
-    this.speed = 3; this.active = true;
-  }
-  update() {
-    if (!this.target || this.target.hp<=0) { this.active=false; return; }
-    let dx = this.target.x - this.x;
-    let dy = this.target.y - this.y;
-    let dist = Math.sqrt(dx*dx+dy*dy);
-    if (dist < 5) {
-      this.target.hp -= this.atk;
-      hitMarks.push(new HitMark(this.target.x,this.target.y));
-      this.active=false;
-    } else {
-      this.x += (dx/dist)*this.speed;
-      this.y += (dy/dist)*this.speed;
-    }
-  }
-  draw() {
-    ctx.strokeStyle="white";
-    ctx.beginPath();
-    ctx.moveTo(this.x,this.y);
-    ctx.lineTo(this.x,this.y-4);
-    ctx.stroke();
-  }
+// 設定表示
+function showSettings(){
+  document.getElementById("menu").style.display="none";
+  document.getElementById("settings").style.display="block";
 }
 
-// 被弾時の斜線エフェクト
-class HitMark {
-  constructor(x,y) {
-    this.x = x; this.y = y;
-    this.life = 15;
-  }
-  update() { this.life--; }
-  draw() {
-    ctx.strokeStyle="red";
-    ctx.lineWidth=3;
-    ctx.beginPath();
-    ctx.moveTo(this.x-10,this.y-10);
-    ctx.lineTo(this.x+10,this.y+10);
-    ctx.moveTo(this.x+10,this.y-10);
-    ctx.lineTo(this.x-10,this.y+10);
-    ctx.stroke();
-    ctx.lineWidth=1;
-  }
+// 戻る
+function backToMenu(){
+  document.getElementById("settings").style.display="none";
+  document.getElementById("menu").style.display="block";
 }
 
-function chooseUnit(type) { pendingUnitType = type; }
-
-canvas.addEventListener("click", (e)=>{
-  if (!pendingUnitType) return;
-  const rect = canvas.getBoundingClientRect();
-  const clickX = e.clientX - rect.left;
-  const lane = Math.floor(clickX / laneWidth);
-  playerUnits.push(new Unit(pendingUnitType,"player",lane,canvas.height-40));
-  pendingUnitType = null;
-});
-
-// 敵スポーン
-setInterval(()=>{
-  const lane = Math.floor(Math.random()*lanes);
-  enemyUnits.push(new Unit("goblin","enemy",lane,40));
-},3000);
-
-// 判定関数
-function inMeleeRange(u1,u2,range=25) {
-  return (Math.abs(u1.lane - u2.lane) <= 1 && Math.abs(u1.y - u2.y) <= range);
-}
-function inArcherRange(u1,u2) {
-  return (Math.abs(u1.lane - u2.lane) <= 3 && Math.abs(u1.y - u2.y) <= 120);
-}
-
-function loop() {
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  // レーン区切り
-  ctx.strokeStyle="#555";
-  for (let i=1;i<lanes;i++) {
-    ctx.beginPath();
-    ctx.moveTo(i*laneWidth,0);
-    ctx.lineTo(i*laneWidth,canvas.height);
-    ctx.stroke();
-  }
-
-  // HP表示
-  ctx.fillStyle="white";
-  ctx.font="14px monospace";
-  ctx.fillText(`自陣HP:${playerBaseHP}`,10,15);
-  ctx.fillText(`敵陣HP:${enemyBaseHP}`,280,15);
-
-  // 更新・描画
-  for (let u of [...playerUnits,...enemyUnits]) {
-    u.update(); u.draw();
-  }
-
-  // 戦闘処理
-  for (let p of playerUnits) {
-    for (let e of enemyUnits) {
-      if (inMeleeRange(p,e)) {
-        p.target = e; e.target = p;
-        if (p.cooldown<=0) {
-          e.hp -= p.atk;
-          hitMarks.push(new HitMark(e.x,e.y));
-          p.cooldown=30;
-        }
-        if (e.cooldown<=0) {
-          p.hp -= e.atk;
-          hitMarks.push(new HitMark(p.x,p.y));
-          e.cooldown=40;
-        }
-      }
-      if (p.role==="archer" && inArcherRange(p,e)) {
-        if (p.cooldown<=0) {
-          projectiles.push(new Projectile(p.x,p.y-12,e,p.atk));
-          p.cooldown = 60;
-        }
+// 設定反映＆ゲーム開始
+function applySettingsAndStart(){
+  for (let key in unitStats){
+    for (let prop in unitStats[key]){
+      let id = `${key}_${prop}`;
+      if (document.getElementById(id)){
+        let val = document.getElementById(id).value;
+        unitStats[key][prop] = parseFloat(val);
       }
     }
   }
-
-  // クールダウン減少
-  for (let u of [...playerUnits,...enemyUnits]) {
-    if (u.cooldown>0) u.cooldown--;
-  }
-
-  // 矢処理
-  for (let pr of projectiles) { pr.update(); pr.draw(); }
-  projectiles = projectiles.filter(pr=>pr.active);
-
-  // 被弾エフェクト処理
-  for (let h of hitMarks) { h.update(); h.draw(); }
-  hitMarks = hitMarks.filter(h=>h.life>0);
-
-  // 死亡処理
-  playerUnits = playerUnits.filter(u=>u.hp>0 && u.y>0);
-  enemyUnits = enemyUnits.filter(u=>u.hp>0 && u.y<canvas.height);
-
-  // 拠点到達
-  for (let e of enemyUnits) {
-    if (e.y >= canvas.height-30) { playerBaseHP -= e.atk; e.hp=0; }
-  }
-  for (let p of playerUnits) {
-    if (p.y <= 30) { enemyBaseHP -= p.atk; p.hp=0; }
-  }
-
-  // 勝敗判定
-  if (playerBaseHP<=0) {
-    ctx.fillStyle="red"; ctx.font="30px sans-serif";
-    ctx.fillText("GAME OVER",100,300); return;
-  }
-  if (enemyBaseHP<=0) {
-    ctx.fillStyle="yellow"; ctx.font="30px sans-serif";
-    ctx.fillText("VICTORY!",120,300); return;
-  }
-
-  requestAnimationFrame(loop);
+  startGame();
 }
-loop();
+
+// ゲーム開始
+function startGame(){
+  document.getElementById("menu").style.display="none";
+  document.getElementById("settings").style.display="none";
+  document.getElementById("title").style.display="none";
+  document.getElementById("gameCanvas").style.display="block";
+
+  // ここでゲーム処理を呼び出し（フェーズ1のコードを移植）
+  alert("ゲーム開始！（ここにフェーズ1の処理を統合します）");
+}
 </script>
 </body>
 </html>
