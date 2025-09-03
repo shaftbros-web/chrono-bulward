@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chrono Bulward - PoC v0.1</title>
+<style>
+  body {
+    margin: 0;
+    background: #222;
+    color: #eee;
+    font-family: monospace;
+    text-align: center;
+  }
+  #gameCanvas {
+    background: linear-gradient(#4e9, #282);
+    display: block;
+    margin: 0 auto;
+    border: 2px solid #000;
+  }
+  #ui {
+    margin-top: 8px;
+  }
+  button {
+    margin: 4px;
+    padding: 8px 16px;
+    font-size: 16px;
+  }
+</style>
+</head>
+<body>
+<h1>Chrono Bulward - PoC v0.1</h1>
+<canvas id="gameCanvas" width="480" height="320"></canvas>
+<div id="ui">
+  <button onclick="summon('swordsman')">剣士 (20)</button>
+  <button onclick="summon('archer')">弓兵 (30)</button>
+</div>
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+// 拠点HP
+let playerBaseHP = 100;
+let enemyBaseHP = 100;
+
+// ユニット配列
+let playerUnits = [];
+let enemyUnits = [];
+
+// ユニット定義
+const unitStats = {
+  swordsman: { hp: 120, atk: 10, range: 20, speed: 1, cost: 20, color: "blue" },
+  archer: { hp: 80, atk: 15, range: 80, speed: 1, cost: 30, color: "cyan" },
+  goblin: { hp: 40, atk: 5, range: 15, speed: 0.5, color: "red" }
+};
+
+// ユニットクラス
+class Unit {
+  constructor(type, side, x) {
+    this.type = type;
+    this.side = side; // "player" or "enemy"
+    this.hp = unitStats[type].hp;
+    this.atk = unitStats[type].atk;
+    this.range = unitStats[type].range;
+    this.speed = unitStats[type].speed;
+    this.color = unitStats[type].color;
+    this.x = x;
+    this.y = side === "player" ? 200 : 120;
+    this.target = null;
+  }
+  draw() {
+    ctx.fillStyle = this.color;
+    ctx.fillRect(this.x-10, this.y-10, 20, 20);
+  }
+  update() {
+    // ターゲット探し
+    let candidates = (this.side==="player"? enemyUnits: playerUnits);
+    this.target = null;
+    for (let u of candidates) {
+      if (Math.abs(u.x - this.x) <= this.range) {
+        this.target = u;
+        break;
+      }
+    }
+    // 攻撃 or 移動
+    if (this.target) {
+      this.target.hp -= this.atk*0.02; // 攻撃処理（毎フレーム少しずつ）
+    } else {
+      this.x += this.side==="player"? this.speed: -this.speed;
+    }
+  }
+}
+
+// ユニット召喚
+function summon(type) {
+  if (type==="swordsman" || type==="archer") {
+    playerUnits.push(new Unit(type,"player",40));
+  }
+}
+
+// 敵スポーン
+setInterval(()=>{
+  enemyUnits.push(new Unit("goblin","enemy",440));
+},2000);
+
+// メインループ
+function loop() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle="black";
+  ctx.fillText(`自陣HP:${playerBaseHP}`,10,15);
+  ctx.fillText(`敵陣HP:${enemyBaseHP}`,380,15);
+
+  // 更新・描画
+  for (let u of [...playerUnits,...enemyUnits]) {
+    u.update();
+    u.draw();
+  }
+
+  // 死亡処理
+  playerUnits = playerUnits.filter(u=>u.hp>0 && u.x<canvas.width-30);
+  enemyUnits = enemyUnits.filter(u=>u.hp>0 && u.x>30);
+
+  // 拠点到達処理
+  for (let u of enemyUnits) {
+    if (u.x<=30) {
