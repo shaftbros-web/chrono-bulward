@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward - フェーズ1</title>
+<title>Chrono Bulward - フェーズ1 (レーン指定召喚)</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:block; margin:0 auto; border:2px solid #000; }
@@ -15,8 +15,8 @@
 <h1>Chrono Bulward - フェーズ1</h1>
 <canvas id="gameCanvas" width="400" height="600"></canvas>
 <div id="ui">
-  <button onclick="summon('swordsman')">剣士召喚</button>
-  <button onclick="summon('archer')">弓兵召喚</button>
+  <button onclick="chooseUnit('swordsman')">剣士召喚</button>
+  <button onclick="chooseUnit('archer')">弓兵召喚</button>
 </div>
 <script>
 const canvas = document.getElementById("gameCanvas");
@@ -29,6 +29,7 @@ let enemyBaseHP = 100;
 
 let playerUnits = [];
 let enemyUnits = [];
+let pendingUnitType = null; // ボタンで選んだユニットタイプを記録
 
 // ユニット定義
 const unitStats = {
@@ -62,36 +63,57 @@ class Unit {
   }
 }
 
-// ユニット召喚
-function summon(type) {
-  const lane = Math.floor(Math.random()*lanes); // ランダムなレーンに召喚（PoC簡易仕様）
-  playerUnits.push(new Unit(type,"player",lane,canvas.height-40));
+// ボタンで召喚ユニット選択
+function chooseUnit(type) {
+  pendingUnitType = type;
 }
 
-// 敵スポーン
+// キャンバスタップでレーン決定
+canvas.addEventListener("click", (e)=>{
+  if (!pendingUnitType) return;
+  const rect = canvas.getBoundingClientRect();
+  const clickX = e.clientX - rect.left;
+  const lane = Math.floor(clickX / laneWidth);
+  playerUnits.push(new Unit(pendingUnitType,"player",lane,canvas.height-40));
+  pendingUnitType = null; // 召喚済みでリセット
+});
+
+// 敵スポーン（ランダムレーン）
 setInterval(()=>{
   const lane = Math.floor(Math.random()*lanes);
   enemyUnits.push(new Unit("goblin","enemy",lane,40));
 },2000);
 
-// 距離判定（縦横）
-function inRange(u1,u2,range=30) {
-  return (Math.abs(u1.x - u2.x) <= laneWidth && Math.abs(u1.y - u2.y) <= range);
+// 近接戦闘判定（同じ/隣接レーンで接近）
+function inMeleeRange(u1,u2,range=25) {
+  return (Math.abs(u1.lane - u2.lane) <= 1 && Math.abs(u1.y - u2.y) <= range);
 }
 
-// 弓兵の射程判定（縦横3マス分 ≒ 120px以内）
-function archerRange(u1,u2) {
-  return (Math.abs(u1.x - u2.x) <= laneWidth*3 && Math.abs(u1.y - u2.y) <= laneWidth*3);
+// 弓兵の射程判定（縦横3マス ≒ 3レーン以内・縦距離も120px以内）
+function inArcherRange(u1,u2) {
+  return (Math.abs(u1.lane - u2.lane) <= 3 && Math.abs(u1.y - u2.y) <= 120);
 }
 
 // メインループ
 function loop() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle="white";
-  ctx.fillText(`自陣HP:${playerBaseHP}`,10,15);
-  ctx.fillText(`敵陣HP:${enemyBaseHP}`,300,15);
 
-  // 更新
+  // レーン区切り線
+  ctx.strokeStyle="#555";
+  for (let i=1;i<lanes;i++) {
+    ctx.beginPath();
+    ctx.moveTo(i*laneWidth,0);
+    ctx.lineTo(i*laneWidth,canvas.height);
+    ctx.stroke();
+  }
+
+  // HP表示
+  ctx.fillStyle="white";
+  ctx.font="14px monospace";
+  ctx.fillText(`自陣HP:${playerBaseHP}`,10,15);
+  ctx.fillText(`敵陣HP:${enemyBaseHP}`,280,15);
+
+  // 更新・描画
   for (let u of [...playerUnits,...enemyUnits]) {
     u.update();
     u.draw();
@@ -100,17 +122,17 @@ function loop() {
   // 戦闘処理
   for (let p of playerUnits) {
     for (let e of enemyUnits) {
-      // 剣士 vs ゴブリン（近接 or 隣接レーンで接近）
-      if (p.role==="melee" && inRange(p,e,25)) {
+      // 剣士 vs ゴブリン（近接）
+      if (p.role==="melee" && inMeleeRange(p,e)) {
         p.hp -= e.atk*0.05;
         e.hp -= p.atk*0.05;
       }
-      // 弓兵 vs ゴブリン（縦横3マス範囲内なら射撃）
-      if (p.role==="archer" && archerRange(p,e)) {
+      // 弓兵の遠隔攻撃
+      if (p.role==="archer" && inArcherRange(p,e)) {
         e.hp -= p.atk*0.02;
       }
-      // ゴブリン vs 弓兵（近接されれば戦闘）
-      if (e.role==="melee" && inRange(p,e,25)) {
+      // ゴブリン vs プレイヤー（近接）
+      if (e.role==="melee" && inMeleeRange(p,e)) {
         p.hp -= e.atk*0.05;
         e.hp -= p.atk*0.05;
       }
