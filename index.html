@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward v0.2.6</title>
+<title>Chrono Bulward v0.2.7</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
@@ -17,7 +17,7 @@
 </style>
 </head>
 <body>
-<h1 id="title">Chrono Bulward v0.2.6</h1>
+<h1 id="title">Chrono Bulward v0.2.7</h1>
 
 <!-- タイトルメニュー -->
 <div id="menu">
@@ -46,8 +46,8 @@
 
 <script>
 /* =====================
-   Chrono Bulward v0.2.6
-   射程判定修正版
+   Chrono Bulward v0.2.7
+   射程無限バグ修正版
 ===================== */
 let unitStats = {
   swordsman:{hp:120, atk:10, speed:0.25, range:25},
@@ -156,8 +156,14 @@ class Unit {
     ctx.fillText(this.label, this.x, this.y);
   }
   update(){
-    if(this.target && this.target.hp>0) return; // 接触中は停止
-    this.target=null;
+    if(this.target){
+      // 射程外 or 死亡ならターゲット解除
+      if(this.target.hp <= 0 || !inUnitRange(this,this.target)){
+        this.target = null;
+      } else {
+        return; // 戦闘 or 射程内なら停止
+      }
+    }
     if(this.side==="player") this.y-=this.speed; else this.y+=this.speed;
   }
 }
@@ -199,19 +205,25 @@ class HealMark { constructor(x,y){ this.x=x; this.y=y; this.life=15; }
     ctx.beginPath(); ctx.arc(this.x,this.y,14,0,Math.PI*2); ctx.stroke(); ctx.lineWidth=1; } }
 
 /* =====================
-   ゲームループ
+   射程判定
 ===================== */
-// ★ 射程判定を距離ベースに修正
+// 近接：同じ/隣レーン ＆ y差20px以内
 function inMeleeRange(u1,u2){ 
-  return (Math.abs(u1.lane-u2.lane)<=1 && Math.abs(u1.y-u2.y)<=u1.range); 
+  let sameLane = (u1.lane === u2.lane) || (Math.abs(u1.lane - u2.lane) === 1);
+  let dy = Math.abs(u1.y - u2.y);
+  return sameLane && dy <= 20;
 }
+// 遠隔：距離ベース
 function inUnitRange(u1,u2){
-  let dx = (u1.lane - u2.lane) * (canvas.width/5); // レーン距離を横距離に換算
+  let dx = (u1.lane - u2.lane) * (canvas.width/5);
   let dy = u1.y - u2.y;
   let dist = Math.sqrt(dx*dx + dy*dy);
   return dist <= u1.range;
 }
 
+/* =====================
+   ゲームループ
+===================== */
 function startGame(){
   document.getElementById("menu").style.display="none";
   document.getElementById("settings").style.display="none";
@@ -272,24 +284,28 @@ function loop(){
     }
   }
 
-  // 敵の特殊行動
+  // 敵の行動
   for(let e of enemyUnits){
     if(e.target && e.target.hp>0){
-      // 接触中は update() 内で停止して殴り合い
+      // 接触中は停止して殴り合い
     } else {
       if(e.role==="shaman" && e.cooldown<=0){
         if(playerUnits.length>0){
           let target=playerUnits[Math.floor(Math.random()*playerUnits.length)];
-          projectiles.push(new Projectile(e.x,e.y+12,target,e.atk,"purple"));
+          if(inUnitRange(e,target)){
+            projectiles.push(new Projectile(e.x,e.y+12,target,e.atk,"purple"));
+            e.cooldown=80;
+          }
         }
-        e.cooldown=80;
       }
       if(e.role==="phantom" && e.cooldown<=0){
         if(playerUnits.length>0){
           let target=playerUnits[Math.floor(Math.random()*playerUnits.length)];
-          projectiles.push(new Projectile(e.x,e.y+12,target,e.atk,"yellow"));
+          if(inUnitRange(e,target)){
+            projectiles.push(new Projectile(e.x,e.y+12,target,e.atk,"yellow"));
+            e.cooldown=50;
+          }
         }
-        e.cooldown=50;
       }
     }
   }
