@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward v0.2.31</title>
+<title>Chrono Bulward v0.2.32</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
@@ -18,7 +18,7 @@
 </style>
 </head>
 <body>
-<h1 id="title">Chrono Bulward v0.2.31</h1>
+<h1 id="title">Chrono Bulward v0.2.32</h1>
 
 <div id="menu">
   <button onclick="startGame()">ゲーム開始</button>
@@ -28,7 +28,7 @@
 
 <!-- 設定画面 -->
 <div id="settings">
-  <h2>ユニット調整（キャラ名クリックで単体出現モード）</h2>
+  <h2>ユニット調整（キャラ名クリックで単体出現モード選択）</h2>
   <div id="unitSliders"></div>
   <div style="margin-top:8px;">
     <button onclick="backToMenu()">戻る</button>
@@ -72,13 +72,13 @@
 
 <script>
 /* =====================
-   Chrono Bulward v0.2.31
+   Chrono Bulward v0.2.32
    敵ゴーレム: 岩投げ
    ボス: 巨大オーガ(近接), 邪竜(炎ブレス遠隔)
-   開発モード: 単体出現
+   開発モード: 単体出現（設定画面で選択 → 開始ボタンで反映）
 ===================== */
 
-let singleSpawnUnit = null; // 単体出現モード選択中のユニット
+let singleSpawnUnit = null; // 単体出現モード用
 
 // ---- 基本ステータス ----
 let unitStats = {
@@ -133,8 +133,7 @@ function applySettingsAndStart(){
 }
 function setSingleSpawn(unit){
   singleSpawnUnit = unit;
-  alert(unit + " の単体出現モードに入りました");
-  applySettingsAndStart();
+  alert(unit + " の単体出現モードを選択しました。ゲーム開始ボタンを押してください。");
 }
 
 // ---- 画面切替 ----
@@ -143,16 +142,13 @@ function backToMenu(){ document.getElementById("settings").style.display="none";
 function showHelp(){ document.getElementById("menu").style.display="none"; document.getElementById("help").style.display="block"; }
 function backToMenuFromHelp(){ document.getElementById("help").style.display="none"; document.getElementById("menu").style.display="block"; }
 
-// ---- ゲーム本体（省略：前回の安定版 v0.2.29 と同じ処理を使用） ----
-// spawnEnemy() だけ変更あり
-
+// ---- ゲーム本体（spawnEnemy のみ抜粋）----
 function spawnEnemy(){
   const lane=Math.floor(Math.random()*5);
   const type = singleSpawnUnit ? singleSpawnUnit :
                ["goblin","orc","golem","shaman","phantom"][Math.floor(Math.random()*5)];
   enemyUnits.push(new Unit(type,"enemy",lane,40));
 }
-
 </script>
 </body>
 </html>
