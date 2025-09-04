@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward v0.2.14</title>
+<title>Chrono Bulward v0.2.15</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
@@ -18,12 +18,12 @@
 </style>
 </head>
 <body>
-<h1 id="title">Chrono Bulward v0.2.14</h1>
+<h1 id="title">Chrono Bulward v0.2.15</h1>
 
 <div id="menu">
   <button onclick="startGame()">ゲーム開始</button>
   <button onclick="showSettings()">設定</button>
-  <button onclick="showHelp()">説明</button> <!-- ★追加 -->
+  <button onclick="showHelp()">説明</button>
 </div>
 
 <div id="settings" style="display:none;">
@@ -49,9 +49,9 @@
 
   <h2>キャラクター詳細</h2>
   <ul>
-    <li><b>剣士</b>：HP120 / ATK10 / 近接戦闘。標準的なユニット</li>
-    <li><b>弓兵</b>：HP80 / ATK8 / 射程120。遠距離攻撃でサポート</li>
-    <li><b>回復役</b>：HP100 / 回復量10 / 射程80。味方を回復する</li>
+    <li><b>ナイト</b>：HP120 / ATK10 / 近接戦闘。標準的なユニット</li>
+    <li><b>アーチャー</b>：HP80 / ATK8 / 射程120。遠距離攻撃でサポート</li>
+    <li><b>クレリック</b>：HP100 / 回復量10 / 射程80。味方を回復する</li>
     <li><b>シャーマン（敵）</b>：HP120 / ATK12 / 射程120。魔法攻撃</li>
     <li><b>ファントム（敵）</b>：HP80 / ATK10 / 射程100。高速遠隔攻撃</li>
     <li><b>ゴブリン</b>：HP60 / ATK5。雑兵</li>
@@ -66,15 +66,15 @@
 <canvas id="gameCanvas" width="400" height="600"></canvas>
 
 <div id="ui">
-  <button onclick="chooseUnit('swordsman')">剣士召喚</button>
-  <button onclick="chooseUnit('archer')">弓兵召喚</button>
-  <button onclick="chooseUnit('healer')">回復役召喚</button>
+  <button onclick="chooseUnit('swordsman')">ナイト召喚</button>
+  <button onclick="chooseUnit('archer')">アーチャー召喚</button>
+  <button onclick="chooseUnit('healer')">クレリック召喚</button>
 </div>
 
 <script>
 /* =====================
-   Chrono Bulward v0.2.14
-   説明画面追加
+   Chrono Bulward v0.2.15
+   ユニット名変更
 ===================== */
 let unitStats = {
   swordsman:{hp:120, atk:10, speed:0.25, range:25},
@@ -89,11 +89,11 @@ let unitStats = {
   dragon:{hp:1500, atk:100, range:80}
 };
 
-/* === 設定画面処理（省略せず v0.2.13 と同じ） === */
+/* === 設定画面処理（省略せず v0.2.14 と同じ） === */
 const unitConfig = {
-  swordsman:{name:"剣士", props:{hp:[50,300], atk:[5,30], speed:[0.1,1,0.05], range:[10,100]}},
-  archer:{name:"弓兵", props:{hp:[40,200], atk:[5,30], speed:[0.1,1,0.05], range:[30,150]}},
-  healer:{name:"回復役", props:{hp:[40,200], atk:[5,30], speed:[0.1,1,0.05], range:[30,150]}},
+  swordsman:{name:"ナイト", props:{hp:[50,300], atk:[5,30], speed:[0.1,1,0.05], range:[10,100]}},
+  archer:{name:"アーチャー", props:{hp:[40,200], atk:[5,30], speed:[0.1,1,0.05], range:[30,150]}},
+  healer:{name:"クレリック", props:{hp:[40,200], atk:[5,30], speed:[0.1,1,0.05], range:[30,150]}},
   goblin:{name:"ゴブリン", props:{hp:[20,200], atk:[2,20], speed:[0.1,1,0.05], range:[10,100]}},
   orc:{name:"オーク", props:{hp:[100,500], atk:[10,50], speed:[0.05,0.5,0.05], range:[10,100]}},
   golem:{name:"ゴーレム", props:{hp:[200,1000], atk:[10,50], speed:[0.05,0.3,0.05], range:[10,100]}},
@@ -133,6 +133,48 @@ function backToMenuFromHelp(){document.getElementById("help").style.display="non
 
 /* === ゲーム本体は v0.2.13 と同じ === */
 /* Unit, Projectile, HealProjectile, HitMark, HealMark, SwingMark, inMeleeRange, inUnitRange, startGame, loop, chooseUnit */
+
+class Unit {
+  constructor(type, side, lane, y){
+    this.type=type; this.side=side; this.lane=lane;
+    this.x=lane*(canvas.width/5)+(canvas.width/10);
+    this.y=y;
+    this.hp=unitStats[type].hp;
+    this.atk=unitStats[type].atk;
+    this.speed=unitStats[type].speed||0.2;
+    this.range=unitStats[type].range||25;
+    this.role=(type==="archer")?"archer":(type==="healer")?"healer":"melee";
+    if(type==="shaman") this.role="shaman";
+    if(type==="phantom") this.role="phantom";
+    this.color=(side==="player")? (type==="archer"?"cyan":type==="healer"?"green":"blue") :"red";
+    const nameMap = {
+      swordsman:"ナ", archer:"弓", healer:"聖",
+      goblin:"ゴ", orc:"オ", golem:"ゴレ",
+      shaman:"シ", phantom:"フ", ogre:"巨", dragon:"竜"
+    };
+    this.label = nameMap[type] || "?";
+    this.target=null; this.cooldown=0;
+  }
+  draw(){
+    ctx.fillStyle=this.color;
+    ctx.beginPath(); ctx.arc(this.x,this.y,12,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = (this.side==="player") ? "white" : "black";
+    ctx.font="14px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText(this.label, this.x, this.y);
+  }
+  update(){
+    if(this.target){
+      if(this.target.hp <= 0 || !inMeleeRange(this,this.target)){
+        this.target = null;
+      } else {
+        return;
+      }
+    }
+    if(this.side==="player") this.y-=this.speed; else this.y+=this.speed;
+  }
+}
+
+/* --- Projectile, HealProjectile, HitMark, HealMark, SwingMark, 判定, startGame, loop, chooseUnit は v0.2.13 と同じ --- */
 </script>
 </body>
 </html>
