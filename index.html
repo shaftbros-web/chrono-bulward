@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward v0.2.11</title>
+<title>Chrono Bulward v0.2.12</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
@@ -17,7 +17,7 @@
 </style>
 </head>
 <body>
-<h1 id="title">Chrono Bulward v0.2.11</h1>
+<h1 id="title">Chrono Bulward v0.2.12</h1>
 
 <div id="menu">
   <button onclick="startGame()">ゲーム開始</button>
@@ -42,7 +42,7 @@
 
 <script>
 /* =====================
-   Chrono Bulward v0.2.11
+   Chrono Bulward v0.2.12
    隣レーン接触判定修正版
 ===================== */
 let unitStats = {
@@ -58,8 +58,52 @@ let unitStats = {
   dragon:{hp:1500, atk:100, range:80}
 };
 
-/* === 設定画面生成などは v0.2.10 と同じ === */
-/* ...（省略：unitConfig, unitSliders, updateLabel, showSettings, backToMenu, applySettingsAndStart）... */
+/* =====================
+   設定画面スライダー
+===================== */
+const unitConfig = {
+  swordsman:{name:"剣士", props:{hp:[50,300], atk:[5,30], speed:[0.1,1,0.05], range:[10,100]}},
+  archer:{name:"弓兵", props:{hp:[40,200], atk:[5,30], speed:[0.1,1,0.05], range:[30,150]}},
+  healer:{name:"回復役", props:{hp:[40,200], atk:[5,30], speed:[0.1,1,0.05], range:[30,150]}},
+  goblin:{name:"ゴブリン", props:{hp:[20,200], atk:[2,20], speed:[0.1,1,0.05], range:[10,100]}},
+  orc:{name:"オーク", props:{hp:[100,500], atk:[10,50], speed:[0.05,0.5,0.05], range:[10,100]}},
+  golem:{name:"ゴーレム", props:{hp:[200,1000], atk:[10,50], speed:[0.05,0.3,0.05], range:[10,100]}},
+  shaman:{name:"シャーマン", props:{hp:[50,250], atk:[5,30], speed:[0.1,0.5,0.05], range:[50,150]}},
+  phantom:{name:"ファントム", props:{hp:[30,150], atk:[5,25], speed:[0.2,1,0.05], range:[30,120]}},
+  ogre:{name:"巨大オーガ(ボス)", props:{hp:[200,2000], atk:[20,200], range:[20,200]}},
+  dragon:{name:"邪竜(ボス)", props:{hp:[500,5000], atk:[50,500], range:[50,500]}}
+};
+
+const unitSlidersDiv = document.getElementById("unitSliders");
+for (let key in unitConfig){
+  let html = `<div class="unit-settings"><h3>${unitConfig[key].name}</h3>`;
+  for (let prop in unitConfig[key].props){
+    let range = unitConfig[key].props[prop];
+    let min=range[0], max=range[1], step=range[2]||1;
+    let val = unitStats[key][prop];
+    html += `${prop.toUpperCase()}: 
+      <input type="range" id="${key}_${prop}" min="${min}" max="${max}" step="${step}" value="${val}" 
+        oninput="updateLabel('${key}_${prop}')">
+      <span id="${key}_${prop}_val">${val}</span><br>`;
+  }
+  html += "</div>";
+  unitSlidersDiv.innerHTML += html;
+}
+function updateLabel(id){ document.getElementById(id+"_val").innerText = document.getElementById(id).value; }
+function showSettings(){ document.getElementById("menu").style.display="none"; document.getElementById("settings").style.display="block"; }
+function backToMenu(){ document.getElementById("settings").style.display="none"; document.getElementById("menu").style.display="block"; }
+function applySettingsAndStart(){
+  for (let key in unitStats){
+    for (let prop in unitStats[key]){
+      let id = `${key}_${prop}`;
+      if (document.getElementById(id)){
+        let val = document.getElementById(id).value;
+        unitStats[key][prop] = parseFloat(val);
+      }
+    }
+  }
+  startGame();
+}
 
 /* =====================
    ゲーム本体
@@ -99,8 +143,12 @@ class Unit {
   }
   update(){
     if(this.target){
-      if(this.target.hp <= 0 || !inUnitRange(this,this.target)){ this.target = null; }
-      else { return; }
+      // ★修正：ターゲット維持に inMeleeRange を使う
+      if(this.target.hp <= 0 || !inMeleeRange(this,this.target)){
+        this.target = null;
+      } else {
+        return; // 近接中は停止を維持
+      }
     }
     if(this.side==="player") this.y-=this.speed; else this.y+=this.speed;
   }
@@ -139,10 +187,14 @@ class HealMark { constructor(x,y){ this.x=x; this.y=y; this.life=15; }
    修正版：近接判定
 ===================== */
 function inMeleeRange(u1,u2){
-  let dx = (u1.lane - u2.lane) * (canvas.width/5);
-  let dy = u1.y - u2.y;
-  let dist = Math.sqrt(dx*dx + dy*dy);
-  return dist <= 24; // 半径12px同士が接触する距離
+  const laneDiff = Math.abs(u1.lane - u2.lane);
+  const dy = Math.abs(u1.y - u2.y);
+  if (laneDiff === 0) {
+    return dy <= 24; // 同レーン：円同士接触
+  } else if (laneDiff === 1) {
+    return dy <= 20; // 隣レーン：縦に近ければ接触扱い
+  }
+  return false;
 }
 
 function inUnitRange(u1,u2){ let dx=(u1.lane-u2.lane)*(canvas.width/5); let dy=u1.y-u2.y; let dist=Math.sqrt(dx*dx+dy*dy); return dist<=u1.range; }
