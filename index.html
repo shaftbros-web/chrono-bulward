@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward v0.2.4</title>
+<title>Chrono Bulward v0.2.5</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
@@ -17,7 +17,7 @@
 </style>
 </head>
 <body>
-<h1 id="title">Chrono Bulward v0.2.4</h1>
+<h1 id="title">Chrono Bulward v0.2.5</h1>
 
 <!-- タイトルメニュー -->
 <div id="menu">
@@ -46,18 +46,18 @@
 
 <script>
 /* =====================
-   Chrono Bulward v0.2.4
-   近接戦闘復活版
+   Chrono Bulward v0.2.5
+   全ユニット接触停止 & 射程調整
 ===================== */
 let unitStats = {
   swordsman:{hp:120, atk:10, speed:0.25, range:25},
-  archer:{hp:80, atk:8, speed:0.25, range:120},
+  archer:{hp:80, atk:8, speed:0.25, range:80},   // 射程調整
   healer:{hp:100, atk:10, speed:0.25, range:80},
   goblin:{hp:60, atk:5, speed:0.2, range:25},
   orc:{hp:200, atk:15, speed:0.2, range:25},
   golem:{hp:400, atk:20, speed:0.1, range:25},
-  shaman:{hp:120, atk:12, speed:0.25, range:100},
-  phantom:{hp:80, atk:10, speed:0.5, range:100}, // ファントム
+  shaman:{hp:120, atk:12, speed:0.25, range:90}, // 射程調整
+  phantom:{hp:80, atk:10, speed:0.5, range:70},  // 射程調整
   ogre:{hp:600, atk:40, range:40},
   dragon:{hp:1500, atk:100, range:80}
 };
@@ -67,13 +67,13 @@ let unitStats = {
 ===================== */
 const unitConfig = {
   swordsman:{name:"剣士", props:{hp:[50,300], atk:[5,30], speed:[0.1,1,0.05], range:[10,100]}},
-  archer:{name:"弓兵", props:{hp:[40,200], atk:[5,30], speed:[0.1,1,0.05], range:[50,300]}},
-  healer:{name:"回復役", props:{hp:[40,200], atk:[5,30], speed:[0.1,1,0.05], range:[30,200]}},
+  archer:{name:"弓兵", props:{hp:[40,200], atk:[5,30], speed:[0.1,1,0.05], range:[30,150]}},
+  healer:{name:"回復役", props:{hp:[40,200], atk:[5,30], speed:[0.1,1,0.05], range:[30,150]}},
   goblin:{name:"ゴブリン", props:{hp:[20,200], atk:[2,20], speed:[0.1,1,0.05], range:[10,100]}},
   orc:{name:"オーク", props:{hp:[100,500], atk:[10,50], speed:[0.05,0.5,0.05], range:[10,100]}},
   golem:{name:"ゴーレム", props:{hp:[200,1000], atk:[10,50], speed:[0.05,0.3,0.05], range:[10,100]}},
-  shaman:{name:"シャーマン", props:{hp:[50,250], atk:[5,30], speed:[0.1,0.5,0.05], range:[50,250]}},
-  phantom:{name:"ファントム", props:{hp:[30,150], atk:[5,25], speed:[0.2,1,0.05], range:[50,150]}},
+  shaman:{name:"シャーマン", props:{hp:[50,250], atk:[5,30], speed:[0.1,0.5,0.05], range:[50,150]}},
+  phantom:{name:"ファントム", props:{hp:[30,150], atk:[5,25], speed:[0.2,1,0.05], range:[30,120]}},
   ogre:{name:"巨大オーガ(ボス)", props:{hp:[200,2000], atk:[20,200], range:[20,200]}},
   dragon:{name:"邪竜(ボス)", props:{hp:[500,5000], atk:[50,500], range:[50,500]}}
 };
@@ -156,7 +156,7 @@ class Unit {
     ctx.fillText(this.label, this.x, this.y);
   }
   update(){
-    if(this.target && this.target.hp>0) return; // 戦闘中は動かない
+    if(this.target && this.target.hp>0) return; // 接触中は停止
     this.target=null;
     if(this.side==="player") this.y-=this.speed; else this.y+=this.speed;
   }
@@ -240,11 +240,10 @@ function loop(){
 
   for(let u of [...playerUnits,...enemyUnits]){ u.update(); u.draw(); }
 
-  // プレイヤー攻撃処理
+  // 戦闘処理
   for(let p of playerUnits){
     for(let e of enemyUnits){
-      // 近接ユニット同士は接触で停止＆殴り合い
-      if(inMeleeRange(p,e) && p.role==="melee" && e.role==="melee"){
+      if(inMeleeRange(p,e)){
         p.target=e; e.target=p;
         if(p.cooldown<=0){
           e.hp-=p.atk; hitMarks.push(new HitMark(e.x,e.y)); p.cooldown=30;
@@ -252,14 +251,13 @@ function loop(){
         if(e.cooldown<=0){
           p.hp-=e.atk; hitMarks.push(new HitMark(p.x,p.y)); e.cooldown=40;
         }
-      }
-      // 弓兵は飛び道具
-      if(p.role==="archer" && inUnitRange(p,e) && p.cooldown<=0){
-        projectiles.push(new Projectile(p.x,p.y-12,e,p.atk,"white"));
-        p.cooldown=60;
+      } else {
+        if(p.role==="archer" && inUnitRange(p,e) && p.cooldown<=0){
+          projectiles.push(new Projectile(p.x,p.y-12,e,p.atk,"white"));
+          p.cooldown=60;
+        }
       }
     }
-    // 回復役
     if(p.role==="healer" && p.cooldown<=0){
       for(let ally of playerUnits){
         if(ally!==p && ally.hp>0 && ally.hp<unitStats[ally.type].hp){
@@ -272,19 +270,23 @@ function loop(){
 
   // 敵の特殊行動
   for(let e of enemyUnits){
-    if(e.role==="shaman" && e.cooldown<=0){
-      if(playerUnits.length>0){
-        let target=playerUnits[Math.floor(Math.random()*playerUnits.length)];
-        projectiles.push(new Projectile(e.x,e.y+12,target,e.atk,"purple"));
+    if(e.target && e.target.hp>0){
+      // 接触中 → 殴り合いは update() 内で処理済み
+    } else {
+      if(e.role==="shaman" && e.cooldown<=0){
+        if(playerUnits.length>0){
+          let target=playerUnits[Math.floor(Math.random()*playerUnits.length)];
+          projectiles.push(new Projectile(e.x,e.y+12,target,e.atk,"purple"));
+        }
+        e.cooldown=80;
       }
-      e.cooldown=80;
-    }
-    if(e.role==="phantom" && e.cooldown<=0){
-      if(playerUnits.length>0){
-        let target=playerUnits[Math.floor(Math.random()*playerUnits.length)];
-        projectiles.push(new Projectile(e.x,e.y+12,target,e.atk,"yellow"));
+      if(e.role==="phantom" && e.cooldown<=0){
+        if(playerUnits.length>0){
+          let target=playerUnits[Math.floor(Math.random()*playerUnits.length)];
+          projectiles.push(new Projectile(e.x,e.y+12,target,e.atk,"yellow"));
+        }
+        e.cooldown=50;
       }
-      e.cooldown=50;
     }
   }
 
