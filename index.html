@@ -3,26 +3,38 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward v0.2.22</title>
+<title>Chrono Bulward v0.2.24</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
-  #menu, #help { margin-top:20px; }
+  #menu, #settings, #help { margin-top:20px; }
   h1 { margin:20px; }
+  .unit-settings { border:1px solid #555; padding:10px; margin:10px auto; width:90%; max-width:400px; text-align:left; }
+  input[type=range] { width:200px; }
   #ui { margin-top:10px; display:none; }
   #ui button { margin:5px; padding:8px 16px; font-size:14px; }
-  #help { display:none; text-align:left; max-width:600px; margin:20px auto; padding:10px; background:#111; border:1px solid #555; }
+  #help, #settings { display:none; text-align:left; max-width:600px; margin:20px auto; padding:10px; background:#111; border:1px solid #555; }
 </style>
 </head>
 <body>
-<h1 id="title">Chrono Bulward v0.2.22</h1>
+<h1 id="title">Chrono Bulward v0.2.24</h1>
 
 <div id="menu">
   <button onclick="startGame()">ゲーム開始</button>
+  <button onclick="showSettings()">設定</button>
   <button onclick="showHelp()">説明</button>
 </div>
 
-<!-- ★説明画面追加 -->
+<!-- 設定画面 -->
+<div id="settings">
+  <h2>ユニット調整</h2>
+  <div id="unitSliders"></div>
+  <br>
+  <button onclick="backToMenu()">戻る</button>
+  <button onclick="applySettingsAndStart()">ゲーム開始</button>
+</div>
+
+<!-- 説明画面 -->
 <div id="help">
   <h2>ゲームのルール</h2>
   <p>自陣（下）からユニットを召喚し、敵陣（上）から進行してくる敵を防ぎます。<br>
@@ -47,7 +59,7 @@
     <li><b>ゴーレム</b>：タフな大型敵</li>
   </ul>
 
-  <button onclick="backToMenu()">戻る</button>
+  <button onclick="backToMenuFromHelp()">戻る</button>
 </div>
 
 <canvas id="gameCanvas" width="400" height="600"></canvas>
@@ -60,10 +72,11 @@
 
 <script>
 /* =====================
-   Chrono Bulward v0.2.22
-   0.2.13ベース＋説明画面
+   Chrono Bulward v0.2.24
+   0.2.13ベース＋説明＋スライダー
 ===================== */
 
+// === ユニット基本値 ===
 let unitStats = {
   swordsman:{hp:120, atk:10, speed:0.25, range:25},
   archer:{hp:80, atk:8, speed:0.25, range:120},
@@ -75,10 +88,53 @@ let unitStats = {
   golem:{hp:400, atk:20, speed:0.1, range:25}
 };
 
-// UI切替
-function showHelp(){document.getElementById("menu").style.display="none";document.getElementById("help").style.display="block";}
-function backToMenu(){document.getElementById("help").style.display="none";document.getElementById("menu").style.display="block";}
+// === スライダー設定値 ===
+const unitConfig = {
+  swordsman:{name:"ナイト", props:{hp:[50,300], atk:[5,30], speed:[0.1,1,0.05], range:[10,100]}},
+  archer:{name:"アーチャー", props:{hp:[40,200], atk:[5,30], speed:[0.1,1,0.05], range:[30,150]}},
+  healer:{name:"クレリック", props:{hp:[40,200], atk:[5,30], speed:[0.1,1,0.05], range:[30,150]}},
+  goblin:{name:"ゴブリン", props:{hp:[20,200], atk:[2,20], speed:[0.1,1,0.05], range:[10,100]}},
+  orc:{name:"オーク", props:{hp:[100,500], atk:[10,50], speed:[0.05,0.5,0.05], range:[10,100]}},
+  shaman:{name:"シャーマン", props:{hp:[50,250], atk:[5,30], speed:[0.1,0.5,0.05], range:[50,150]}},
+  phantom:{name:"ファントム", props:{hp:[30,150], atk:[5,25], speed:[0.2,1,0.05], range:[30,120]}},
+  golem:{name:"ゴーレム", props:{hp:[200,1000], atk:[10,50], speed:[0.05,0.3,0.05], range:[10,100]}}
+};
 
+// === スライダー描画 ===
+const unitSlidersDiv = document.getElementById("unitSliders");
+for (let key in unitConfig){
+  let html=`<div class="unit-settings"><h3>${unitConfig[key].name}</h3>`;
+  for (let prop in unitConfig[key].props){
+    let range=unitConfig[key].props[prop];
+    let min=range[0], max=range[1], step=range[2]||1;
+    let val=unitStats[key][prop];
+    html+=`${prop.toUpperCase()}: <input type="range" id="${key}_${prop}" min="${min}" max="${max}" step="${step}" value="${val}" 
+            oninput="updateLabel('${key}_${prop}')">
+            <span id="${key}_${prop}_val">${val}</span><br>`;
+  }
+  html+="</div>";
+  unitSlidersDiv.innerHTML+=html;
+}
+function updateLabel(id){ document.getElementById(id+"_val").innerText=document.getElementById(id).value; }
+function applySettingsAndStart(){
+  for (let key in unitStats){
+    for (let prop in unitStats[key]){
+      let id=`${key}_${prop}`;
+      if(document.getElementById(id)){
+        unitStats[key][prop]=parseFloat(document.getElementById(id).value);
+      }
+    }
+  }
+  startGame();
+}
+
+// === UI 切替関数 ===
+function showSettings(){document.getElementById("menu").style.display="none";document.getElementById("settings").style.display="block";}
+function backToMenu(){document.getElementById("settings").style.display="none";document.getElementById("menu").style.display="block";}
+function showHelp(){document.getElementById("menu").style.display="none";document.getElementById("help").style.display="block";}
+function backToMenuFromHelp(){document.getElementById("help").style.display="none";document.getElementById("menu").style.display="block";}
+
+// === ゲーム本体 ===
 const canvas=document.getElementById("gameCanvas");
 const ctx=canvas.getContext("2d");
 let playerBaseHP, enemyBaseHP, playerUnits, enemyUnits, projectiles, hitMarks, swingMarks;
@@ -133,8 +189,9 @@ function inUnitRange(u1,u2){let dx=(u1.lane-u2.lane)*(canvas.width/5);let dy=u1.
 
 function startGame(){
   document.getElementById("menu").style.display="none";
-  document.getElementById("title").style.display="none";
+  document.getElementById("settings").style.display="none";
   document.getElementById("help").style.display="none";
+  document.getElementById("title").style.display="none";
   canvas.style.display="block";document.getElementById("ui").style.display="block";
   playerBaseHP=100;enemyBaseHP=100;playerUnits=[];enemyUnits=[];projectiles=[];hitMarks=[];swingMarks=[];
   canvas.onclick=(e)=>{if(!pendingUnitType)return;let rect=canvas.getBoundingClientRect();let lane=Math.floor((e.clientX-rect.left)/(canvas.width/5));playerUnits.push(new Unit(pendingUnitType,"player",lane,canvas.height-40));pendingUnitType=null;};
@@ -151,18 +208,4 @@ function loop(){
   for(let e of enemyUnits){if(e.target&&e.target.hp>0){}else{if(e.role==="shaman"&&e.cooldown<=0){if(playerUnits.length>0){let target=playerUnits[Math.floor(Math.random()*playerUnits.length)];if(inUnitRange(e,target)){projectiles.push(new Projectile(e.x,e.y+12,target,e.atk,"purple"));e.cooldown=80;}}}if(e.role==="phantom"&&e.cooldown<=0){if(playerUnits.length>0){let target=playerUnits[Math.floor(Math.random()*playerUnits.length)];if(inUnitRange(e,target)){projectiles.push(new Projectile(e.x,e.y+12,target,e.atk,"yellow"));e.cooldown=50;}}}}}
   for(let u of [...playerUnits,...enemyUnits]) if(u.cooldown>0) u.cooldown--;
   for(let pr of projectiles){pr.update();pr.draw();} projectiles=projectiles.filter(pr=>pr.active);
-  for(let h of hitMarks){h.update();h.draw();} hitMarks=hitMarks.filter(h=>h.life>0);
-  for(let s of swingMarks){s.update();s.draw();} swingMarks=swingMarks.filter(s=>s.life>0);
-  playerUnits=playerUnits.filter(u=>u.hp>0&&u.y>0);
-  enemyUnits=enemyUnits.filter(u=>u.hp>0&&u.y<canvas.height);
-  for(let e of enemyUnits){if(e.y>=canvas.height-30){playerBaseHP-=e.atk;e.hp=0;}}
-  for(let p of playerUnits){if(p.y<=30){enemyBaseHP-=p.atk;p.hp=0;}}
-  if(playerBaseHP<=0){ctx.fillStyle="red";ctx.font="30px sans-serif";ctx.fillText("GAME OVER",100,300);return;}
-  if(enemyBaseHP<=0){ctx.fillStyle="yellow";ctx.font="30px sans-serif";ctx.fillText("VICTORY!",120,300);return;}
-  requestAnimationFrame(loop);
-}
-
-function chooseUnit(type){pendingUnitType=type;}
-</script>
-</body>
-</html>
+  for(let h of hitMarks){h
