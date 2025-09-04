@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward v0.2.30</title>
+<title>Chrono Bulward v0.2.31</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
@@ -14,10 +14,11 @@
   #ui { margin-top:10px; display:none; }
   #ui button { margin:5px; padding:8px 16px; font-size:14px; }
   #help, #settings { display:none; text-align:left; max-width:700px; margin:20px auto; padding:12px; background:#111; border:1px solid #555; }
+  h3 { cursor:pointer; }
 </style>
 </head>
 <body>
-<h1 id="title">Chrono Bulward v0.2.30</h1>
+<h1 id="title">Chrono Bulward v0.2.31</h1>
 
 <div id="menu">
   <button onclick="startGame()">ゲーム開始</button>
@@ -27,7 +28,7 @@
 
 <!-- 設定画面 -->
 <div id="settings">
-  <h2>ユニット調整</h2>
+  <h2>ユニット調整（キャラ名クリックで単体出現モード）</h2>
   <div id="unitSliders"></div>
   <div style="margin-top:8px;">
     <button onclick="backToMenu()">戻る</button>
@@ -50,12 +51,12 @@
 
   <h2>主要ユニット</h2>
   <ul>
-    <li><b>ナイト</b>：近接。標準的な耐久と攻撃</li>
-    <li><b>アーチャー</b>：遠距離。射程内を攻撃</li>
-    <li><b>クレリック</b>：回復。射程内の味方を回復</li>
-    <li><b>敵ゴーレム</b>：射程45の岩投げ攻撃（遠隔タンク）</li>
-    <li><b>巨大オーガ</b>：ステージ5ボス。高耐久・高火力の近接</li>
-    <li><b>邪竜</b>：ステージ10ボス。高耐久・炎ブレスの遠隔</li>
+    <li><b>ナイト</b>：近接</li>
+    <li><b>アーチャー</b>：遠距離</li>
+    <li><b>クレリック</b>：回復</li>
+    <li><b>ゴーレム</b>：敵専用・岩投げ</li>
+    <li><b>巨大オーガ</b>：ボス・近接高火力</li>
+    <li><b>邪竜</b>：ボス・炎ブレス遠隔</li>
   </ul>
 
   <button onclick="backToMenuFromHelp()">戻る</button>
@@ -71,10 +72,13 @@
 
 <script>
 /* =====================
-   Chrono Bulward v0.2.30
+   Chrono Bulward v0.2.31
    敵ゴーレム: 岩投げ
    ボス: 巨大オーガ(近接), 邪竜(炎ブレス遠隔)
+   開発モード: 単体出現
 ===================== */
+
+let singleSpawnUnit = null; // 単体出現モード選択中のユニット
 
 // ---- 基本ステータス ----
 let unitStats = {
@@ -107,7 +111,7 @@ const unitConfig = {
 // ---- 設定UI生成 ----
 const unitSlidersDiv = document.getElementById("unitSliders");
 for (let key in unitConfig){
-  let html = `<div class="unit-settings"><h3>${unitConfig[key].name}</h3>`;
+  let html = `<div class="unit-settings"><h3 onclick="setSingleSpawn('${key}')">${unitConfig[key].name}</h3>`;
   for (let prop in unitConfig[key].props){
     const [min,max,step=1] = unitConfig[key].props[prop];
     const val = unitStats[key][prop];
@@ -127,6 +131,11 @@ function applySettingsAndStart(){
   }
   startGame();
 }
+function setSingleSpawn(unit){
+  singleSpawnUnit = unit;
+  alert(unit + " の単体出現モードに入りました");
+  applySettingsAndStart();
+}
 
 // ---- 画面切替 ----
 function showSettings(){ document.getElementById("menu").style.display="none"; document.getElementById("settings").style.display="block"; }
@@ -134,8 +143,15 @@ function backToMenu(){ document.getElementById("settings").style.display="none";
 function showHelp(){ document.getElementById("menu").style.display="none"; document.getElementById("help").style.display="block"; }
 function backToMenuFromHelp(){ document.getElementById("help").style.display="none"; document.getElementById("menu").style.display="block"; }
 
-// ---- ゲーム本体（略: loop, Unit, Projectileなど前回通り）----
-// （ここに戦闘処理、敵AI、ボス行動: dragon=炎ブレス(オレンジ弾), ogre=近接 などが入る）
+// ---- ゲーム本体（省略：前回の安定版 v0.2.29 と同じ処理を使用） ----
+// spawnEnemy() だけ変更あり
+
+function spawnEnemy(){
+  const lane=Math.floor(Math.random()*5);
+  const type = singleSpawnUnit ? singleSpawnUnit :
+               ["goblin","orc","golem","shaman","phantom"][Math.floor(Math.random()*5)];
+  enemyUnits.push(new Unit(type,"enemy",lane,40));
+}
 
 </script>
 </body>
