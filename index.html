@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward v0.2.2</title>
+<title>Chrono Bulward v0.2.3</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
@@ -17,7 +17,7 @@
 </style>
 </head>
 <body>
-<h1 id="title">Chrono Bulward v0.2.2</h1>
+<h1 id="title">Chrono Bulward v0.2.3</h1>
 
 <!-- タイトルメニュー -->
 <div id="menu">
@@ -46,8 +46,8 @@
 
 <script>
 /* =====================
-   Chrono Bulward v0.2.2
-   ユニット識別ラベル付き
+   Chrono Bulward v0.2.3
+   ファントム実装版
 ===================== */
 let unitStats = {
   swordsman:{hp:120, atk:10, speed:0.25, range:25},
@@ -57,7 +57,7 @@ let unitStats = {
   orc:{hp:200, atk:15, speed:0.2, range:25},
   golem:{hp:400, atk:20, speed:0.1, range:25},
   shaman:{hp:120, atk:12, speed:0.25, range:100},
-  wolf:{hp:80, atk:10, speed:0.5, range:150},
+  phantom:{hp:80, atk:10, speed:0.5, range:100}, // ★ファントム
   ogre:{hp:600, atk:40, range:40},
   dragon:{hp:1500, atk:100, range:80}
 };
@@ -73,7 +73,7 @@ const unitConfig = {
   orc:{name:"オーク", props:{hp:[100,500], atk:[10,50], speed:[0.05,0.5,0.05], range:[10,100]}},
   golem:{name:"ゴーレム", props:{hp:[200,1000], atk:[10,50], speed:[0.05,0.3,0.05], range:[10,100]}},
   shaman:{name:"シャーマン", props:{hp:[50,250], atk:[5,30], speed:[0.1,0.5,0.05], range:[50,250]}},
-  wolf:{name:"ウルフ", props:{hp:[30,150], atk:[5,25], speed:[0.2,1,0.05], range:[50,300]}},
+  phantom:{name:"ファントム", props:{hp:[30,150], atk:[5,25], speed:[0.2,1,0.05], range:[50,150]}}, // ★
   ogre:{name:"巨大オーガ(ボス)", props:{hp:[200,2000], atk:[20,200], range:[20,200]}},
   dragon:{name:"邪竜(ボス)", props:{hp:[500,5000], atk:[50,500], range:[50,500]}}
 };
@@ -129,33 +129,29 @@ class Unit {
     this.range=unitStats[type].range||25;
     this.role=(type==="archer")?"archer":(type==="healer")?"healer":"melee";
     if(type==="shaman") this.role="shaman";
-    if(type==="wolf") this.role="wolf";
+    if(type==="phantom") this.role="phantom"; // ★ファントム
 
-    // 色設定
     this.color=(side==="player")? 
       (type==="archer"?"cyan":type==="healer"?"green":"blue") 
       :"red";
 
-    // 名前→頭文字ラベル
     const nameMap = {
       swordsman:"剣", archer:"弓", healer:"回",
       goblin:"ゴ", orc:"オ", golem:"ゴレ",
-      shaman:"シ", wolf:"ウ", ogre:"巨", dragon:"竜"
+      shaman:"シ", phantom:"フ", ogre:"巨", dragon:"竜"
     };
     this.label = nameMap[type] || "?";
 
     this.target=null; this.cooldown=0;
   }
   draw(){
-    // 本体の丸
     ctx.fillStyle=this.color;
     ctx.beginPath();
     ctx.arc(this.x,this.y,12,0,Math.PI*2);
     ctx.fill();
 
-    // 頭文字ラベル
     ctx.fillStyle = (this.side==="player") ? "white" : "black";
-    ctx.font="10px sans-serif";
+    ctx.font="14px sans-serif"; // ★文字大きく
     ctx.textAlign="center"; ctx.textBaseline="middle";
     ctx.fillText(this.label, this.x, this.y);
   }
@@ -163,16 +159,16 @@ class Unit {
     if(this.side==="player") this.y-=this.speed; else this.y+=this.speed; }
 }
 
-/* Projectile, HealProjectile, HitMark, HealMark は v0.2.1 と同じ */
+/* Projectile系クラス */
 class Projectile {
-  constructor(x,y,target,atk){ this.x=x; this.y=y; this.target=target; this.atk=atk; this.speed=3; this.active=true; }
+  constructor(x,y,target,atk,color="white"){ this.x=x; this.y=y; this.target=target; this.atk=atk; this.speed=3; this.active=true; this.color=color; }
   update(){
     if(!this.target||this.target.hp<=0){this.active=false; return;}
     let dx=this.target.x-this.x, dy=this.target.y-this.y; let dist=Math.sqrt(dx*dx+dy*dy);
     if(dist<5){ this.target.hp-=this.atk; hitMarks.push(new HitMark(this.target.x,this.target.y)); this.active=false; }
     else{ this.x+=(dx/dist)*this.speed; this.y+=(dy/dist)*this.speed; }
   }
-  draw(){ ctx.strokeStyle="white"; ctx.beginPath(); ctx.moveTo(this.x,this.y); ctx.lineTo(this.x,this.y-4); ctx.stroke(); }
+  draw(){ ctx.strokeStyle=this.color; ctx.beginPath(); ctx.moveTo(this.x,this.y); ctx.lineTo(this.x,this.y-4); ctx.stroke(); }
 }
 class HealProjectile {
   constructor(x,y,target,amount){ this.x=x; this.y=y; this.target=target; this.amount=amount; this.speed=3; this.active=true; }
@@ -186,16 +182,14 @@ class HealProjectile {
 }
 class HitMark { constructor(x,y){ this.x=x; this.y=y; this.life=15; }
   update(){ this.life--; }
-  draw(){
-    ctx.lineWidth=5; ctx.strokeStyle="black";
+  draw(){ ctx.lineWidth=5; ctx.strokeStyle="black";
     ctx.beginPath(); ctx.moveTo(this.x-10,this.y-10); ctx.lineTo(this.x+10,this.y+10);
     ctx.moveTo(this.x+10,this.y-10); ctx.lineTo(this.x-10,this.y+10); ctx.stroke();
     ctx.lineWidth=3; ctx.strokeStyle="red";
     ctx.beginPath(); ctx.moveTo(this.x-10,this.y-10); ctx.lineTo(this.x+10,this.y+10);
     ctx.moveTo(this.x+10,this.y-10); ctx.lineTo(this.x-10,this.y+10); ctx.stroke();
     ctx.lineWidth=1;
-  }
-}
+  }}
 class HealMark { constructor(x,y){ this.x=x; this.y=y; this.life=15; }
   update(){ this.life--; }
   draw(){ ctx.strokeStyle="lime"; ctx.lineWidth=3;
@@ -226,7 +220,7 @@ function startGame(){
 
   // 敵スポーン
   setInterval(()=>{
-    const enemyTypes=["goblin","orc","golem","shaman","wolf"];
+    const enemyTypes=["goblin","orc","golem","shaman","phantom"]; // ★ファントム追加
     let type = enemyTypes[Math.floor(Math.random()*enemyTypes.length)];
     let lane=Math.floor(Math.random()*5);
     enemyUnits.push(new Unit(type,"enemy",lane,40));
@@ -243,25 +237,23 @@ function loop(){
 
   for(let u of [...playerUnits,...enemyUnits]){ u.update(); u.draw(); }
 
-  // 戦闘処理
+  // プレイヤー攻撃処理
   for(let p of playerUnits){
     for(let e of enemyUnits){
-      if(inMeleeRange(p,e)){
-        p.target=e; e.target=p;
-        if(p.cooldown<=0){ e.hp-=p.atk; hitMarks.push(new HitMark(e.x,e.y)); p.cooldown=30; }
-        if(e.cooldown<=0){ p.hp-=e.atk; hitMarks.push(new HitMark(p.x,p.y)); e.cooldown=40; }
+      if(inMeleeRange(p,e) && p.role==="melee" && p.cooldown<=0){
+        projectiles.push(new Projectile(p.x,p.y-12,e,p.atk,"red"));
+        p.cooldown=30;
       }
       if(p.role==="archer" && inUnitRange(p,e) && p.cooldown<=0){
-        projectiles.push(new Projectile(p.x,p.y-12,e,p.atk)); p.cooldown=60;
+        projectiles.push(new Projectile(p.x,p.y-12,e,p.atk,"white"));
+        p.cooldown=60;
       }
     }
     if(p.role==="healer"){
       for(let ally of playerUnits){
-        if(ally!==p && ally.hp>0 && ally.hp<unitStats[ally.type].hp){
-          if(Math.abs(p.y-ally.y)<=p.range && p.cooldown<=0){
-            projectiles.push(new HealProjectile(p.x,p.y-12,ally,p.atk));
-            p.cooldown=90;
-          }
+        if(ally!==p && ally.hp>0 && ally.hp<unitStats[ally.type].hp && p.cooldown<=0){
+          projectiles.push(new HealProjectile(p.x,p.y-12,ally,p.atk));
+          p.cooldown=90;
         }
       }
     }
@@ -270,20 +262,26 @@ function loop(){
   // 敵の特殊行動
   for(let e of enemyUnits){
     if(e.role==="shaman" && e.cooldown<=0){
-      for(let p of playerUnits){
-        if(p && inUnitRange(e,p)){
-          p.hp -= e.atk;
-          hitMarks.push(new HitMark(p.x,p.y));
-        }
-      }
-      e.cooldown=120;
-    }
-    if(e.role==="wolf" && e.cooldown<=0){
       if(playerUnits.length>0){
         let target=playerUnits[Math.floor(Math.random()*playerUnits.length)];
-        if(target) projectiles.push(new Projectile(e.x,e.y+12,target,e.atk));
+        projectiles.push(new Projectile(e.x,e.y+12,target,e.atk,"purple"));
       }
-      e.cooldown=60;
+      e.cooldown=80;
+    }
+    if(e.role==="phantom" && e.cooldown<=0){
+      if(playerUnits.length>0){
+        let target=playerUnits[Math.floor(Math.random()*playerUnits.length)];
+        projectiles.push(new Projectile(e.x,e.y+12,target,e.atk,"yellow"));
+      }
+      e.cooldown=50;
+    }
+    if(e.role==="melee" && e.cooldown<=0){
+      for(let p of playerUnits){
+        if(inMeleeRange(e,p)){
+          projectiles.push(new Projectile(e.x,e.y+12,p,e.atk,"red"));
+          e.cooldown=40;
+        }
+      }
     }
   }
 
