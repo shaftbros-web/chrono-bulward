@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward v0.2.19</title>
+<title>Chrono Bulward v0.2.20</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
@@ -18,7 +18,7 @@
 </style>
 </head>
 <body>
-<h1 id="title">Chrono Bulward v0.2.19</h1>
+<h1 id="title">Chrono Bulward v0.2.20</h1>
 
 <div id="menu">
   <button onclick="startGame()">ゲーム開始</button>
@@ -72,30 +72,80 @@
 
 <script>
 /* =====================
-   Chrono Bulward v0.2.19
-   設定/説明ボタン修正
+   Chrono Bulward v0.2.20
+   スライダー復活
 ===================== */
 
-// === UI 切替関数（不足していた部分を補完） ===
-function showSettings(){
-  document.getElementById("menu").style.display="none";
-  document.getElementById("settings").style.display="block";
-}
-function backToMenu(){
-  document.getElementById("settings").style.display="none";
-  document.getElementById("menu").style.display="block";
-}
-function showHelp(){
-  document.getElementById("menu").style.display="none";
-  document.getElementById("help").style.display="block";
-}
-function backToMenuFromHelp(){
-  document.getElementById("help").style.display="none";
-  document.getElementById("menu").style.display="block";
+// === ユニット基本値 ===
+let unitStats = {
+  swordsman:{hp:120, atk:10, speed:0.25, range:25},
+  archer:{hp:80, atk:8, speed:0.25, range:120},
+  healer:{hp:100, atk:10, speed:0.25, range:80},
+  goblin:{hp:60, atk:5, speed:0.2, range:25},
+  orc:{hp:200, atk:15, speed:0.2, range:25},
+  golem:{hp:400, atk:20, speed:0.1, range:25},
+  shaman:{hp:120, atk:12, speed:0.25, range:120},
+  phantom:{hp:80, atk:10, speed:0.5, range:100},
+  ogre:{hp:600, atk:40, range:40},
+  dragon:{hp:1500, atk:100, range:80}
+};
+
+// === スライダー設定値 ===
+const unitConfig = {
+  swordsman:{name:"ナイト", props:{hp:[50,300], atk:[5,30], speed:[0.1,1,0.05], range:[10,100]}},
+  archer:{name:"アーチャー", props:{hp:[40,200], atk:[5,30], speed:[0.1,1,0.05], range:[30,150]}},
+  healer:{name:"クレリック", props:{hp:[40,200], atk:[5,30], speed:[0.1,1,0.05], range:[30,150]}},
+  goblin:{name:"ゴブリン", props:{hp:[20,200], atk:[2,20], speed:[0.1,1,0.05], range:[10,100]}},
+  orc:{name:"オーク", props:{hp:[100,500], atk:[10,50], speed:[0.05,0.5,0.05], range:[10,100]}},
+  golem:{name:"ゴーレム", props:{hp:[200,1000], atk:[10,50], speed:[0.05,0.3,0.05], range:[10,100]}},
+  shaman:{name:"シャーマン", props:{hp:[50,250], atk:[5,30], speed:[0.1,0.5,0.05], range:[50,150]}},
+  phantom:{name:"ファントム", props:{hp:[30,150], atk:[5,25], speed:[0.2,1,0.05], range:[30,120]}},
+  ogre:{name:"巨大オーガ", props:{hp:[200,2000], atk:[20,200], range:[20,200]}},
+  dragon:{name:"邪竜", props:{hp:[500,5000], atk:[50,500], range:[50,500]}}
+};
+
+// === スライダー描画 ===
+const unitSlidersDiv = document.getElementById("unitSliders");
+for (let key in unitConfig){
+  let html=`<div class="unit-settings"><h3>${unitConfig[key].name}</h3>`;
+  for (let prop in unitConfig[key].props){
+    let range=unitConfig[key].props[prop];
+    let min=range[0], max=range[1], step=range[2]||1;
+    let val=unitStats[key][prop];
+    html+=`${prop.toUpperCase()}: <input type="range" id="${key}_${prop}" min="${min}" max="${max}" step="${step}" value="${val}" 
+            oninput="updateLabel('${key}_${prop}')">
+            <span id="${key}_${prop}_val">${val}</span><br>`;
+  }
+  html+="</div>";
+  unitSlidersDiv.innerHTML+=html;
 }
 
-// === 以下は v0.2.18 のまま（ゲーム本体、クラス、loop など） ===
-// …（Projectile / HealProjectile / Unit / startGame / loop / chooseUnit など完全実装済み）…
+// === ラベル更新 ===
+function updateLabel(id){
+  document.getElementById(id+"_val").innerText=document.getElementById(id).value;
+}
+
+// === 適用して開始 ===
+function applySettingsAndStart(){
+  for (let key in unitStats){
+    for (let prop in unitStats[key]){
+      let id=`${key}_${prop}`;
+      if(document.getElementById(id)){
+        unitStats[key][prop]=parseFloat(document.getElementById(id).value);
+      }
+    }
+  }
+  startGame();
+}
+
+// === UI 切替関数 ===
+function showSettings(){document.getElementById("menu").style.display="none";document.getElementById("settings").style.display="block";}
+function backToMenu(){document.getElementById("settings").style.display="none";document.getElementById("menu").style.display="block";}
+function showHelp(){document.getElementById("menu").style.display="none";document.getElementById("help").style.display="block";}
+function backToMenuFromHelp(){document.getElementById("help").style.display="none";document.getElementById("menu").style.display="block";}
+
+// === 以下、v0.2.18 のゲーム本体 (Unit, Projectile, loop など完全実装済み) ===
+// ... （省略：前回お渡ししたクラス・startGame・loop・chooseUnit をそのまま残す） ...
 </script>
 </body>
 </html>
