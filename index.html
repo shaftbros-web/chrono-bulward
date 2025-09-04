@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward v0.2.8</title>
+<title>Chrono Bulward v0.2.9</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
@@ -17,7 +17,7 @@
 </style>
 </head>
 <body>
-<h1 id="title">Chrono Bulward v0.2.8</h1>
+<h1 id="title">Chrono Bulward v0.2.9</h1>
 
 <!-- タイトルメニュー -->
 <div id="menu">
@@ -46,8 +46,8 @@
 
 <script>
 /* =====================
-   Chrono Bulward v0.2.8
-   Projectile視認性改善版
+   Chrono Bulward v0.2.9
+   回復の射程制限修正版
 ===================== */
 let unitStats = {
   swordsman:{hp:120, atk:10, speed:0.25, range:25},
@@ -184,7 +184,6 @@ class Projectile {
     }
     else{ this.x+=(dx/dist)*this.speed; this.y+=(dy/dist)*this.speed; }
   }
-  // ★ 丸い弾で描画（見やすく）
   draw(){
     ctx.fillStyle=this.color;
     ctx.beginPath();
@@ -277,9 +276,10 @@ function loop(){
         }
       }
     }
+    // ★ 回復の射程制限を追加
     if(p.role==="healer" && p.cooldown<=0){
       for(let ally of playerUnits){
-        if(ally!==p && ally.hp>0 && ally.hp<unitStats[ally.type].hp){
+        if(ally!==p && ally.hp>0 && ally.hp<unitStats[ally.type].hp && inUnitRange(p,ally)){
           projectiles.push(new HealProjectile(p.x,p.y-12,ally,p.atk));
           p.cooldown=90;
         }
