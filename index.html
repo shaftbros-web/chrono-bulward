@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward v0.2.1</title>
+<title>Chrono Bulward v0.2.2</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
@@ -17,7 +17,7 @@
 </style>
 </head>
 <body>
-<h1 id="title">Chrono Bulward v0.2.1</h1>
+<h1 id="title">Chrono Bulward v0.2.2</h1>
 
 <!-- タイトルメニュー -->
 <div id="menu">
@@ -46,8 +46,8 @@
 
 <script>
 /* =====================
-   Chrono Bulward v0.2.1
-   敵追加＋バグ修正版
+   Chrono Bulward v0.2.2
+   ユニット識別ラベル付き
 ===================== */
 let unitStats = {
   swordsman:{hp:120, atk:10, speed:0.25, range:25},
@@ -130,14 +130,40 @@ class Unit {
     this.role=(type==="archer")?"archer":(type==="healer")?"healer":"melee";
     if(type==="shaman") this.role="shaman";
     if(type==="wolf") this.role="wolf";
-    this.color=(side==="player")? (type==="archer"?"cyan":type==="healer"?"green":"blue") :"red";
+
+    // 色設定
+    this.color=(side==="player")? 
+      (type==="archer"?"cyan":type==="healer"?"green":"blue") 
+      :"red";
+
+    // 名前→頭文字ラベル
+    const nameMap = {
+      swordsman:"剣", archer:"弓", healer:"回",
+      goblin:"ゴ", orc:"オ", golem:"ゴレ",
+      shaman:"シ", wolf:"ウ", ogre:"巨", dragon:"竜"
+    };
+    this.label = nameMap[type] || "?";
+
     this.target=null; this.cooldown=0;
   }
-  draw(){ ctx.fillStyle=this.color; ctx.beginPath(); ctx.arc(this.x,this.y,12,0,Math.PI*2); ctx.fill(); }
+  draw(){
+    // 本体の丸
+    ctx.fillStyle=this.color;
+    ctx.beginPath();
+    ctx.arc(this.x,this.y,12,0,Math.PI*2);
+    ctx.fill();
+
+    // 頭文字ラベル
+    ctx.fillStyle = (this.side==="player") ? "white" : "black";
+    ctx.font="10px sans-serif";
+    ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText(this.label, this.x, this.y);
+  }
   update(){ if(this.target&&this.target.hp>0)return; this.target=null;
     if(this.side==="player") this.y-=this.speed; else this.y+=this.speed; }
 }
 
+/* Projectile, HealProjectile, HitMark, HealMark は v0.2.1 と同じ */
 class Projectile {
   constructor(x,y,target,atk){ this.x=x; this.y=y; this.target=target; this.atk=atk; this.speed=3; this.active=true; }
   update(){
@@ -148,66 +174,36 @@ class Projectile {
   }
   draw(){ ctx.strokeStyle="white"; ctx.beginPath(); ctx.moveTo(this.x,this.y); ctx.lineTo(this.x,this.y-4); ctx.stroke(); }
 }
-
 class HealProjectile {
-  constructor(x,y,target,amount){
-    this.x=x; this.y=y; this.target=target; this.amount=amount;
-    this.speed=3; this.active=true;
-  }
+  constructor(x,y,target,amount){ this.x=x; this.y=y; this.target=target; this.amount=amount; this.speed=3; this.active=true; }
   update(){
     if(!this.target||this.target.hp<=0){ this.active=false; return; }
-    let dx=this.target.x-this.x, dy=this.target.y-this.y;
-    let dist=Math.sqrt(dx*dx+dy*dy);
-    if(dist<5){
-      this.target.hp += this.amount;
-      hitMarks.push(new HealMark(this.target.x,this.target.y));
-      this.active=false;
-    } else {
-      this.x+=(dx/dist)*this.speed;
-      this.y+=(dy/dist)*this.speed;
-    }
+    let dx=this.target.x-this.x, dy=this.target.y-this.y; let dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<5){ this.target.hp += this.amount; hitMarks.push(new HealMark(this.target.x,this.target.y)); this.active=false; }
+    else{ this.x+=(dx/dist)*this.speed; this.y+=(dy/dist)*this.speed; }
   }
-  draw(){
-    ctx.strokeStyle="lime";
-    ctx.beginPath();
-    ctx.moveTo(this.x,this.y);
-    ctx.lineTo(this.x,this.y-4);
-    ctx.stroke();
-  }
+  draw(){ ctx.strokeStyle="lime"; ctx.beginPath(); ctx.moveTo(this.x,this.y); ctx.lineTo(this.x,this.y-4); ctx.stroke(); }
 }
-
-class HitMark {
-  constructor(x,y){ this.x=x; this.y=y; this.life=15; }
+class HitMark { constructor(x,y){ this.x=x; this.y=y; this.life=15; }
   update(){ this.life--; }
   draw(){
     ctx.lineWidth=5; ctx.strokeStyle="black";
-    ctx.beginPath();
-    ctx.moveTo(this.x-10,this.y-10); ctx.lineTo(this.x+10,this.y+10);
-    ctx.moveTo(this.x+10,this.y-10); ctx.lineTo(this.x-10,this.y+10);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(this.x-10,this.y-10); ctx.lineTo(this.x+10,this.y+10);
+    ctx.moveTo(this.x+10,this.y-10); ctx.lineTo(this.x-10,this.y+10); ctx.stroke();
     ctx.lineWidth=3; ctx.strokeStyle="red";
-    ctx.beginPath();
-    ctx.moveTo(this.x-10,this.y-10); ctx.lineTo(this.x+10,this.y+10);
-    ctx.moveTo(this.x+10,this.y-10); ctx.lineTo(this.x-10,this.y+10);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(this.x-10,this.y-10); ctx.lineTo(this.x+10,this.y+10);
+    ctx.moveTo(this.x+10,this.y-10); ctx.lineTo(this.x-10,this.y+10); ctx.stroke();
     ctx.lineWidth=1;
   }
 }
-
-class HealMark {
-  constructor(x,y){ this.x=x; this.y=y; this.life=15; }
+class HealMark { constructor(x,y){ this.x=x; this.y=y; this.life=15; }
   update(){ this.life--; }
-  draw(){
-    ctx.strokeStyle="lime";
-    ctx.lineWidth=3;
-    ctx.beginPath();
-    ctx.arc(this.x,this.y,14,0,Math.PI*2);
-    ctx.stroke();
-    ctx.lineWidth=1;
-  }
-}
+  draw(){ ctx.strokeStyle="lime"; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(this.x,this.y,14,0,Math.PI*2); ctx.stroke(); ctx.lineWidth=1; } }
 
-/* --- ユーティリティ --- */
+/* =====================
+   ゲームループ
+===================== */
 function inMeleeRange(u1,u2){ return (Math.abs(u1.lane-u2.lane)<=1 && Math.abs(u1.y-u2.y)<=u1.range); }
 function inUnitRange(u1,u2){ return (Math.abs(u1.lane-u2.lane)<=3 && Math.abs(u1.y-u2.y)<=u1.range); }
 
@@ -247,7 +243,7 @@ function loop(){
 
   for(let u of [...playerUnits,...enemyUnits]){ u.update(); u.draw(); }
 
-  // プレイヤーユニットの行動
+  // 戦闘処理
   for(let p of playerUnits){
     for(let e of enemyUnits){
       if(inMeleeRange(p,e)){
