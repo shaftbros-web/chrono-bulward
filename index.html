@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward v0.2.7</title>
+<title>Chrono Bulward v0.2.8</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
@@ -17,7 +17,7 @@
 </style>
 </head>
 <body>
-<h1 id="title">Chrono Bulward v0.2.7</h1>
+<h1 id="title">Chrono Bulward v0.2.8</h1>
 
 <!-- タイトルメニュー -->
 <div id="menu">
@@ -46,8 +46,8 @@
 
 <script>
 /* =====================
-   Chrono Bulward v0.2.7
-   射程無限バグ修正版
+   Chrono Bulward v0.2.8
+   Projectile視認性改善版
 ===================== */
 let unitStats = {
   swordsman:{hp:120, atk:10, speed:0.25, range:25},
@@ -57,7 +57,7 @@ let unitStats = {
   orc:{hp:200, atk:15, speed:0.2, range:25},
   golem:{hp:400, atk:20, speed:0.1, range:25},
   shaman:{hp:120, atk:12, speed:0.25, range:90},
-  phantom:{hp:80, atk:10, speed:0.5, range:70}, // ファントム
+  phantom:{hp:80, atk:10, speed:0.5, range:70},
   ogre:{hp:600, atk:40, range:40},
   dragon:{hp:1500, atk:100, range:80}
 };
@@ -157,11 +157,10 @@ class Unit {
   }
   update(){
     if(this.target){
-      // 射程外 or 死亡ならターゲット解除
       if(this.target.hp <= 0 || !inUnitRange(this,this.target)){
         this.target = null;
       } else {
-        return; // 戦闘 or 射程内なら停止
+        return; // 戦闘中／射程内は停止
       }
     }
     if(this.side==="player") this.y-=this.speed; else this.y+=this.speed;
@@ -170,14 +169,28 @@ class Unit {
 
 /* Projectile系クラス */
 class Projectile {
-  constructor(x,y,target,atk,color="white"){ this.x=x; this.y=y; this.target=target; this.atk=atk; this.speed=3; this.active=true; this.color=color; }
+  constructor(x,y,target,atk,color="white"){ 
+    this.x=x; this.y=y; this.target=target; this.atk=atk; 
+    this.speed=3; this.active=true; this.color=color; 
+  }
   update(){
     if(!this.target||this.target.hp<=0){this.active=false; return;}
-    let dx=this.target.x-this.x, dy=this.target.y-this.y; let dist=Math.sqrt(dx*dx+dy*dy);
-    if(dist<5){ this.target.hp-=this.atk; hitMarks.push(new HitMark(this.target.x,this.target.y)); this.active=false; }
+    let dx=this.target.x-this.x, dy=this.target.y-this.y; 
+    let dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<5){ 
+      this.target.hp-=this.atk; 
+      hitMarks.push(new HitMark(this.target.x,this.target.y)); 
+      this.active=false; 
+    }
     else{ this.x+=(dx/dist)*this.speed; this.y+=(dy/dist)*this.speed; }
   }
-  draw(){ ctx.strokeStyle=this.color; ctx.beginPath(); ctx.moveTo(this.x,this.y); ctx.lineTo(this.x,this.y-4); ctx.stroke(); }
+  // ★ 丸い弾で描画（見やすく）
+  draw(){
+    ctx.fillStyle=this.color;
+    ctx.beginPath();
+    ctx.arc(this.x,this.y,4,0,Math.PI*2);
+    ctx.fill();
+  }
 }
 class HealProjectile {
   constructor(x,y,target,amount){ this.x=x; this.y=y; this.target=target; this.amount=amount; this.speed=3; this.active=true; }
@@ -187,33 +200,25 @@ class HealProjectile {
     if(dist<5){ this.target.hp += this.amount; hitMarks.push(new HealMark(this.target.x,this.target.y)); this.active=false; }
     else{ this.x+=(dx/dist)*this.speed; this.y+=(dy/dist)*this.speed; }
   }
-  draw(){ ctx.strokeStyle="lime"; ctx.beginPath(); ctx.moveTo(this.x,this.y); ctx.lineTo(this.x,this.y-4); ctx.stroke(); }
+  draw(){ ctx.fillStyle="lime"; ctx.beginPath(); ctx.arc(this.x,this.y,4,0,Math.PI*2); ctx.fill(); }
 }
 class HitMark { constructor(x,y){ this.x=x; this.y=y; this.life=15; }
   update(){ this.life--; }
-  draw(){ ctx.lineWidth=5; ctx.strokeStyle="black";
-    ctx.beginPath(); ctx.moveTo(this.x-10,this.y-10); ctx.lineTo(this.x+10,this.y+10);
-    ctx.moveTo(this.x+10,this.y-10); ctx.lineTo(this.x-10,this.y+10); ctx.stroke();
-    ctx.lineWidth=3; ctx.strokeStyle="red";
-    ctx.beginPath(); ctx.moveTo(this.x-10,this.y-10); ctx.lineTo(this.x+10,this.y+10);
-    ctx.moveTo(this.x+10,this.y-10); ctx.lineTo(this.x-10,this.y+10); ctx.stroke();
-    ctx.lineWidth=1;
-  }}
+  draw(){ ctx.lineWidth=3; ctx.strokeStyle="red";
+    ctx.beginPath(); ctx.moveTo(this.x-8,this.y-8); ctx.lineTo(this.x+8,this.y+8);
+    ctx.moveTo(this.x+8,this.y-8); ctx.lineTo(this.x-8,this.y+8); ctx.stroke(); ctx.lineWidth=1; } }
 class HealMark { constructor(x,y){ this.x=x; this.y=y; this.life=15; }
   update(){ this.life--; }
-  draw(){ ctx.strokeStyle="lime"; ctx.lineWidth=3;
-    ctx.beginPath(); ctx.arc(this.x,this.y,14,0,Math.PI*2); ctx.stroke(); ctx.lineWidth=1; } }
+  draw(){ ctx.strokeStyle="lime"; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(this.x,this.y,14,0,Math.PI*2); ctx.stroke(); ctx.lineWidth=1; } }
 
 /* =====================
    射程判定
 ===================== */
-// 近接：同じ/隣レーン ＆ y差20px以内
 function inMeleeRange(u1,u2){ 
   let sameLane = (u1.lane === u2.lane) || (Math.abs(u1.lane - u2.lane) === 1);
   let dy = Math.abs(u1.y - u2.y);
   return sameLane && dy <= 20;
 }
-// 遠隔：距離ベース
 function inUnitRange(u1,u2){
   let dx = (u1.lane - u2.lane) * (canvas.width/5);
   let dy = u1.y - u2.y;
@@ -241,7 +246,6 @@ function startGame(){
     pendingUnitType=null;
   };
 
-  // 敵スポーン
   setInterval(()=>{
     const enemyTypes=["goblin","orc","golem","shaman","phantom"];
     let type = enemyTypes[Math.floor(Math.random()*enemyTypes.length)];
@@ -260,7 +264,6 @@ function loop(){
 
   for(let u of [...playerUnits,...enemyUnits]){ u.update(); u.draw(); }
 
-  // 戦闘処理
   for(let p of playerUnits){
     for(let e of enemyUnits){
       if(inMeleeRange(p,e)){
@@ -284,10 +287,8 @@ function loop(){
     }
   }
 
-  // 敵の行動
   for(let e of enemyUnits){
     if(e.target && e.target.hp>0){
-      // 接触中は停止して殴り合い
     } else {
       if(e.role==="shaman" && e.cooldown<=0){
         if(playerUnits.length>0){
