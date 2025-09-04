@@ -97,7 +97,7 @@ const unitConfig = {
   orc:      {name:"オーク",    props:{hp:[100,500],atk:[10,50], speed:[0.05,0.5,0.05], range:[10,100]}},
   shaman:   {name:"シャーマン", props:{hp:[50,250], atk:[5,30], speed:[0.1,0.5,0.05], range:[50,150]}},
   phantom:  {name:"ファントム", props:{hp:[30,150], atk:[5,25], speed:[0.2,1,0.05], range:[30,120]}},
-  golem:    {name:"ゴーレム",  props:{hp:[200,1000],atk:[10,50],speed:[0.05,0.3,0.05], range:[30,80]}} // デフォルト45
+  golem:    {name:"ゴーレム",  props:{hp:[200,1000],atk:[10,50],speed:[0.05,0.3,0.05], range:[30,80]}} // デフォルト45（unitStatsに依存）
 };
 
 // ---- 設定UI生成 ----
@@ -274,6 +274,66 @@ function loop(){
         }
       }
     }
+    // クレリックの回復
     if(p.role==="healer" && p.cooldown<=0){
       for(const ally of playerUnits){
-        if(ally!==p && ally.hp>0 && ally.hp<unitStats[ally.type].hp
+        if(ally!==p && ally.hp>0 && ally.hp<unitStats[ally.type].hp && inUnitRange(p,ally)){
+          projectiles.push(new HealProjectile(p.x,p.y-12,ally,p.atk));
+          p.cooldown=90;
+          break;
+        }
+      }
+    }
+  }
+
+  // 敵ユニットの遠隔行動
+  for(const e of enemyUnits){
+    if(e.target && e.target.hp>0){
+      // 近接中は移動・射撃なし
+    }else{
+      if(e.role==="shaman" && e.cooldown<=0 && playerUnits.length>0){
+        const t=playerUnits[Math.floor(Math.random()*playerUnits.length)];
+        if(inUnitRange(e,t)){ projectiles.push(new Projectile(e.x,e.y+12,t,e.atk,"purple")); e.cooldown=80; }
+      }
+      if(e.role==="phantom" && e.cooldown<=0 && playerUnits.length>0){
+        const t=playerUnits[Math.floor(Math.random()*playerUnits.length)];
+        if(inUnitRange(e,t)){ projectiles.push(new Projectile(e.x,e.y+12,t,e.atk,"yellow")); e.cooldown=50; }
+      }
+    }
+  }
+
+  // クールダウン進行
+  for(const u of [...playerUnits,...enemyUnits]) if(u.cooldown>0) u.cooldown--;
+
+  // 飛翔体・ヒット演出
+  for(const pr of projectiles){ pr.update(); pr.draw(); }
+  projectiles = projectiles.filter(pr=>pr.active);
+
+  for(const h of hitMarks){ h.update(); h.draw(); }
+  hitMarks = hitMarks.filter(h=>h.life>0);
+
+  for(const s of swingMarks){ s.update(); s.draw(); }
+  swingMarks = swingMarks.filter(s=>s.life>0);
+
+  // 到達処理（ベースダメージ）
+  playerUnits = playerUnits.filter(u=>u.hp>0 && u.y>0);
+  enemyUnits  = enemyUnits.filter(u=>u.hp>0 && u.y<canvas.height);
+  for(const e of enemyUnits){ if(e.y>=canvas.height-30){ playerBaseHP-=e.atk; e.hp=0; } }
+  for(const p of playerUnits){ if(p.y<=30){ enemyBaseHP-=p.atk; p.hp=0; } }
+
+  // 勝敗
+  if(playerBaseHP<=0){ endScreen("GAME OVER","red"); return; }
+  if(enemyBaseHP<=0){ endScreen("VICTORY!","yellow"); return; }
+
+  requestAnimationFrame(loop);
+}
+
+function endScreen(text,color){
+  if(enemySpawnTimer) { clearInterval(enemySpawnTimer); enemySpawnTimer=null; }
+  ctx.fillStyle=color; ctx.font="30px sans-serif"; ctx.fillText(text, 120, 300);
+}
+
+function chooseUnit(type){ pendingUnitType=type; }
+</script>
+</body>
+</html>
