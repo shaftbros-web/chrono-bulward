@@ -276,4 +276,4 @@ function loop(){
     }
     if(p.role==="healer" && p.cooldown<=0){
       for(const ally of playerUnits){
-        if(ally!==p && ally.hp>0 && ally.hp<unitStats[ally
+        if(ally!==p && ally.hp>0 && ally.hp<unitStats[ally.type].hp
