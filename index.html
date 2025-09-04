@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward v0.2.3</title>
+<title>Chrono Bulward v0.2.4</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
@@ -17,7 +17,7 @@
 </style>
 </head>
 <body>
-<h1 id="title">Chrono Bulward v0.2.3</h1>
+<h1 id="title">Chrono Bulward v0.2.4</h1>
 
 <!-- タイトルメニュー -->
 <div id="menu">
@@ -46,8 +46,8 @@
 
 <script>
 /* =====================
-   Chrono Bulward v0.2.3
-   ファントム実装版
+   Chrono Bulward v0.2.4
+   近接戦闘復活版
 ===================== */
 let unitStats = {
   swordsman:{hp:120, atk:10, speed:0.25, range:25},
@@ -57,7 +57,7 @@ let unitStats = {
   orc:{hp:200, atk:15, speed:0.2, range:25},
   golem:{hp:400, atk:20, speed:0.1, range:25},
   shaman:{hp:120, atk:12, speed:0.25, range:100},
-  phantom:{hp:80, atk:10, speed:0.5, range:100}, // ★ファントム
+  phantom:{hp:80, atk:10, speed:0.5, range:100}, // ファントム
   ogre:{hp:600, atk:40, range:40},
   dragon:{hp:1500, atk:100, range:80}
 };
@@ -73,7 +73,7 @@ const unitConfig = {
   orc:{name:"オーク", props:{hp:[100,500], atk:[10,50], speed:[0.05,0.5,0.05], range:[10,100]}},
   golem:{name:"ゴーレム", props:{hp:[200,1000], atk:[10,50], speed:[0.05,0.3,0.05], range:[10,100]}},
   shaman:{name:"シャーマン", props:{hp:[50,250], atk:[5,30], speed:[0.1,0.5,0.05], range:[50,250]}},
-  phantom:{name:"ファントム", props:{hp:[30,150], atk:[5,25], speed:[0.2,1,0.05], range:[50,150]}}, // ★
+  phantom:{name:"ファントム", props:{hp:[30,150], atk:[5,25], speed:[0.2,1,0.05], range:[50,150]}},
   ogre:{name:"巨大オーガ(ボス)", props:{hp:[200,2000], atk:[20,200], range:[20,200]}},
   dragon:{name:"邪竜(ボス)", props:{hp:[500,5000], atk:[50,500], range:[50,500]}}
 };
@@ -129,7 +129,7 @@ class Unit {
     this.range=unitStats[type].range||25;
     this.role=(type==="archer")?"archer":(type==="healer")?"healer":"melee";
     if(type==="shaman") this.role="shaman";
-    if(type==="phantom") this.role="phantom"; // ★ファントム
+    if(type==="phantom") this.role="phantom";
 
     this.color=(side==="player")? 
       (type==="archer"?"cyan":type==="healer"?"green":"blue") 
@@ -151,12 +151,15 @@ class Unit {
     ctx.fill();
 
     ctx.fillStyle = (this.side==="player") ? "white" : "black";
-    ctx.font="14px sans-serif"; // ★文字大きく
+    ctx.font="14px sans-serif";
     ctx.textAlign="center"; ctx.textBaseline="middle";
     ctx.fillText(this.label, this.x, this.y);
   }
-  update(){ if(this.target&&this.target.hp>0)return; this.target=null;
-    if(this.side==="player") this.y-=this.speed; else this.y+=this.speed; }
+  update(){
+    if(this.target && this.target.hp>0) return; // 戦闘中は動かない
+    this.target=null;
+    if(this.side==="player") this.y-=this.speed; else this.y+=this.speed;
+  }
 }
 
 /* Projectile系クラス */
@@ -220,7 +223,7 @@ function startGame(){
 
   // 敵スポーン
   setInterval(()=>{
-    const enemyTypes=["goblin","orc","golem","shaman","phantom"]; // ★ファントム追加
+    const enemyTypes=["goblin","orc","golem","shaman","phantom"];
     let type = enemyTypes[Math.floor(Math.random()*enemyTypes.length)];
     let lane=Math.floor(Math.random()*5);
     enemyUnits.push(new Unit(type,"enemy",lane,40));
@@ -240,18 +243,26 @@ function loop(){
   // プレイヤー攻撃処理
   for(let p of playerUnits){
     for(let e of enemyUnits){
-      if(inMeleeRange(p,e) && p.role==="melee" && p.cooldown<=0){
-        projectiles.push(new Projectile(p.x,p.y-12,e,p.atk,"red"));
-        p.cooldown=30;
+      // 近接ユニット同士は接触で停止＆殴り合い
+      if(inMeleeRange(p,e) && p.role==="melee" && e.role==="melee"){
+        p.target=e; e.target=p;
+        if(p.cooldown<=0){
+          e.hp-=p.atk; hitMarks.push(new HitMark(e.x,e.y)); p.cooldown=30;
+        }
+        if(e.cooldown<=0){
+          p.hp-=e.atk; hitMarks.push(new HitMark(p.x,p.y)); e.cooldown=40;
+        }
       }
+      // 弓兵は飛び道具
       if(p.role==="archer" && inUnitRange(p,e) && p.cooldown<=0){
         projectiles.push(new Projectile(p.x,p.y-12,e,p.atk,"white"));
         p.cooldown=60;
       }
     }
-    if(p.role==="healer"){
+    // 回復役
+    if(p.role==="healer" && p.cooldown<=0){
       for(let ally of playerUnits){
-        if(ally!==p && ally.hp>0 && ally.hp<unitStats[ally.type].hp && p.cooldown<=0){
+        if(ally!==p && ally.hp>0 && ally.hp<unitStats[ally.type].hp){
           projectiles.push(new HealProjectile(p.x,p.y-12,ally,p.atk));
           p.cooldown=90;
         }
@@ -274,14 +285,6 @@ function loop(){
         projectiles.push(new Projectile(e.x,e.y+12,target,e.atk,"yellow"));
       }
       e.cooldown=50;
-    }
-    if(e.role==="melee" && e.cooldown<=0){
-      for(let p of playerUnits){
-        if(inMeleeRange(e,p)){
-          projectiles.push(new Projectile(e.x,e.y+12,p,e.atk,"red"));
-          e.cooldown=40;
-        }
-      }
     }
   }
 
