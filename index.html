@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward v0.2.24</title>
+<title>Chrono Bulward v0.2.26</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
@@ -17,7 +17,7 @@
 </style>
 </head>
 <body>
-<h1 id="title">Chrono Bulward v0.2.24</h1>
+<h1 id="title">Chrono Bulward v0.2.26</h1>
 
 <div id="menu">
   <button onclick="startGame()">ゲーム開始</button>
@@ -72,8 +72,8 @@
 
 <script>
 /* =====================
-   Chrono Bulward v0.2.24
-   0.2.13ベース＋説明＋スライダー
+   Chrono Bulward v0.2.26
+   0.2.13ベース＋説明＋スライダー（完全版）
 ===================== */
 
 // === ユニット基本値 ===
@@ -102,19 +102,22 @@ const unitConfig = {
 
 // === スライダー描画 ===
 const unitSlidersDiv = document.getElementById("unitSliders");
-for (let key in unitConfig){
-  let html=`<div class="unit-settings"><h3>${unitConfig[key].name}</h3>`;
-  for (let prop in unitConfig[key].props){
-    let range=unitConfig[key].props[prop];
-    let min=range[0], max=range[1], step=range[2]||1;
-    let val=unitStats[key][prop];
-    html+=`${prop.toUpperCase()}: <input type="range" id="${key}_${prop}" min="${min}" max="${max}" step="${step}" value="${val}" 
-            oninput="updateLabel('${key}_${prop}')">
-            <span id="${key}_${prop}_val">${val}</span><br>`;
+if(unitSlidersDiv){
+  for (let key in unitConfig){
+    let html=`<div class="unit-settings"><h3>${unitConfig[key].name}</h3>`;
+    for (let prop in unitConfig[key].props){
+      let range=unitConfig[key].props[prop];
+      let min=range[0], max=range[1], step=range[2]||1;
+      let val=unitStats[key][prop];
+      html+=`${prop.toUpperCase()}: <input type="range" id="${key}_${prop}" min="${min}" max="${max}" step="${step}" value="${val}" 
+              oninput="updateLabel('${key}_${prop}')">
+              <span id="${key}_${prop}_val">${val}</span><br>`;
+    }
+    html+="</div>";
+    unitSlidersDiv.innerHTML+=html;
   }
-  html+="</div>";
-  unitSlidersDiv.innerHTML+=html;
 }
+
 function updateLabel(id){ document.getElementById(id+"_val").innerText=document.getElementById(id).value; }
 function applySettingsAndStart(){
   for (let key in unitStats){
@@ -172,14 +175,18 @@ class Unit {
   }
 }
 
-class Projectile{constructor(x,y,target,atk,color="white"){this.x=x;this.y=y;this.target=target;this.atk=atk;this.speed=3;this.active=true;this.color=color;}
+class Projectile{
+  constructor(x,y,target,atk,color="white"){this.x=x;this.y=y;this.target=target;this.atk=atk;this.speed=3;this.active=true;this.color=color;}
   update(){if(!this.target||this.target.hp<=0){this.active=false;return;}let dx=this.target.x-this.x,dy=this.target.y-this.y;let dist=Math.sqrt(dx*dx+dy*dy);
     if(dist<5){this.target.hp-=this.atk;hitMarks.push(new HitMark(this.target.x,this.target.y));this.active=false;}else{this.x+=(dx/dist)*this.speed;this.y+=(dy/dist)*this.speed;}}
-  draw(){ctx.fillStyle=this.color;ctx.beginPath();ctx.arc(this.x,this.y,4,0,Math.PI*2);ctx.fill();}}
-class HealProjectile{constructor(x,y,target,amount){this.x=x;this.y=y;this.target=target;this.amount=amount;this.speed=3;this.active=true;}
+  draw(){ctx.fillStyle=this.color;ctx.beginPath();ctx.arc(this.x,this.y,4,0,Math.PI*2);ctx.fill();}
+}
+class HealProjectile{
+  constructor(x,y,target,amount){this.x=x;this.y=y;this.target=target;this.amount=amount;this.speed=3;this.active=true;}
   update(){if(!this.target||this.target.hp<=0){this.active=false;return;}let dx=this.target.x-this.x,dy=this.target.y-this.y;let dist=Math.sqrt(dx*dx+dy*dy);
     if(dist<5){this.target.hp+=this.amount;hitMarks.push(new HealMark(this.target.x,this.target.y));this.active=false;}else{this.x+=(dx/dist)*this.speed;this.y+=(dy/dist)*this.speed;}}
-  draw(){ctx.fillStyle="lime";ctx.beginPath();ctx.arc(this.x,this.y,4,0,Math.PI*2);ctx.fill();}}
+  draw(){ctx.fillStyle="lime";ctx.beginPath();ctx.arc(this.x,this.y,4,0,Math.PI*2);ctx.fill();}
+}
 class HitMark{constructor(x,y){this.x=x;this.y=y;this.life=15;}update(){this.life--;}draw(){ctx.lineWidth=3;ctx.strokeStyle="red";ctx.beginPath();ctx.moveTo(this.x-8,this.y-8);ctx.lineTo(this.x+8,this.y+8);ctx.moveTo(this.x+8,this.y-8);ctx.lineTo(this.x-8,this.y+8);ctx.stroke();ctx.lineWidth=1;}}
 class HealMark{constructor(x,y){this.x=x;this.y=y;this.life=15;}update(){this.life--;}draw(){ctx.strokeStyle="lime";ctx.lineWidth=3;ctx.beginPath();ctx.arc(this.x,this.y,14,0,Math.PI*2);ctx.stroke();ctx.lineWidth=1;}}
 class SwingMark{constructor(x,y,side){this.x=x;this.y=y;this.life=12;this.side=side;}update(){this.life--;}draw(){ctx.save();ctx.lineWidth=3;ctx.strokeStyle=(this.side==="player")?"#88f":"#f88";ctx.beginPath();ctx.arc(this.x,this.y,16,-Math.PI/3,0);ctx.stroke();ctx.beginPath();ctx.arc(this.x,this.y,12,0,Math.PI/3);ctx.stroke();ctx.restore();}}
@@ -207,5 +214,4 @@ function loop(){
   for(let p of playerUnits){for(let e of enemyUnits){if(inMeleeRange(p,e)){p.target=e;e.target=p;if(p.cooldown<=0){e.hp-=p.atk;hitMarks.push(new HitMark(e.x,e.y));swingMarks.push(new SwingMark(p.x,p.y,"player"));p.cooldown=30;}if(e.cooldown<=0){p.hp-=e.atk;hitMarks.push(new HitMark(p.x,p.y));swingMarks.push(new SwingMark(e.x,e.y,"enemy"));e.cooldown=40;}}else{if(p.role==="archer"&&inUnitRange(p,e)&&p.cooldown<=0){projectiles.push(new Projectile(p.x,p.y-12,e,p.atk,"white"));p.cooldown=60;}}}if(p.role==="healer"&&p.cooldown<=0){for(let ally of playerUnits){if(ally!==p&&ally.hp>0&&ally.hp<unitStats[ally.type].hp&&inUnitRange(p,ally)){projectiles.push(new HealProjectile(p.x,p.y-12,ally,p.atk));p.cooldown=90;}}}}
   for(let e of enemyUnits){if(e.target&&e.target.hp>0){}else{if(e.role==="shaman"&&e.cooldown<=0){if(playerUnits.length>0){let target=playerUnits[Math.floor(Math.random()*playerUnits.length)];if(inUnitRange(e,target)){projectiles.push(new Projectile(e.x,e.y+12,target,e.atk,"purple"));e.cooldown=80;}}}if(e.role==="phantom"&&e.cooldown<=0){if(playerUnits.length>0){let target=playerUnits[Math.floor(Math.random()*playerUnits.length)];if(inUnitRange(e,target)){projectiles.push(new Projectile(e.x,e.y+12,target,e.atk,"yellow"));e.cooldown=50;}}}}}
   for(let u of [...playerUnits,...enemyUnits]) if(u.cooldown>0) u.cooldown--;
-  for(let pr of projectiles){pr.update();pr.draw();} projectiles=projectiles.filter(pr=>pr.active);
-  for(let h of hitMarks){h
+  for(let pr of projectiles){pr.update();pr.draw();
