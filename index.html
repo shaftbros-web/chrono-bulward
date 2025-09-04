@@ -53,9 +53,9 @@
     <li><b>ナイト</b>：近接。標準的な耐久と攻撃</li>
     <li><b>アーチャー</b>：遠距離。射程内を攻撃</li>
     <li><b>クレリック</b>：回復。射程内の味方を回復</li>
-    <li><b>ゴブリン/オーク</b>：敵の前衛</li>
     <li><b>ゴーレム</b>：射程45の岩投げ攻撃（遠隔タンク）</li>
-    <li><b>シャーマン/ファントム</b>：敵の遠隔攻撃</li>
+    <li><b>ゴブリン／オーク</b>：敵の前衛</li>
+    <li><b>シャーマン／ファントム</b>：敵の遠隔攻撃</li>
   </ul>
 
   <button onclick="backToMenuFromHelp()">戻る</button>
@@ -269,10 +269,11 @@ function loop(){
         if(p.role==="archer" && inUnitRange(p,e) && p.cooldown<=0){
           projectiles.push(new Projectile(p.x,p.y-12,e,p.atk,"white")); p.cooldown=60;
         }
+        if(p.role==="golemRanged" && inUnitRange(p,e) && p.cooldown<=0){
+          projectiles.push(new Projectile(p.x,p.y-12,e,p.atk,"brown")); p.cooldown=90;
+        }
       }
     }
-    // クレリックの回復
     if(p.role==="healer" && p.cooldown<=0){
       for(const ally of playerUnits){
-        if(ally!==p && ally.hp>0 && ally.hp<unitStats[ally.type].hp && inUnitRange(p,ally)){
-          projectiles.push(new HealProjectile(p.x,p.y-12,ally
+        if(ally!==p && ally.hp>0 && ally.hp<unitStats[ally
