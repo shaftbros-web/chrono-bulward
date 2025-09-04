@@ -1,339 +1,489 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward v0.2.28</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Mobile TD v0.2 — NeoGlass Edition</title>
+<meta name="description" content="スマホ向け：迷路型タワーディフェンス。ゼロから刷新された令和最新版UI。見切れ防止・ドラッグ配置・全10ウェーブ。" />
 <style>
-  body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
-  #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
-  #menu, #settings, #help { margin-top:20px; }
-  h1 { margin:20px; }
-  .unit-settings { border:1px solid #555; padding:10px; margin:10px auto; width:90%; max-width:420px; text-align:left; }
-  input[type=range] { width:230px; }
-  #ui { margin-top:10px; display:none; }
-  #ui button { margin:5px; padding:8px 16px; font-size:14px; }
-  #help, #settings { display:none; text-align:left; max-width:700px; margin:20px auto; padding:12px; background:#111; border:1px solid #555; }
+  :root{
+    /* THEME */
+    --bg0:#060910;
+    --bg1:#0b1220;
+    --glass:#0f1520cc;
+    --stroke:#1e293b;
+    --ink:#e6edf3;
+    --muted:#9aa4b2;
+    --ok:#10b981; --warn:#f59e0b; --bad:#ef4444; --accent:#60a5fa;
+
+    /* LAYOUT */
+    --bar: 112px;
+    --tile: 44px;      /* JSで常に再計算 */
+    --grid-w: 12;
+    --grid-h: 16;
+
+    /* FX */
+    --glow: 0 0 24px rgba(96,165,250,.35);
+    --glow-red: 0 0 20px rgba(239,68,68,.4);
+    --glow-green: 0 0 20px rgba(16,185,129,.35);
+  }
+  *{box-sizing:border-box;touch-action:manipulation}
+  html,body{
+    height:100dvh;margin:0;background:radial-gradient(1200px 800px at 70% -10%, #13223f 0%, #0a1221 45%, #060910 100%);
+    color:var(--ink);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,'Noto Sans JP','Hiragino Kaku Gothic ProN','Yu Gothic',Meiryo,sans-serif;
+    overflow:hidden;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;
+  }
+
+  /* 背景パーティクル */
+  .stars{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.35;background:
+    radial-gradient(2px 2px at 20% 30%, #8fb5ff 0 40%, transparent 45%),
+    radial-gradient(2px 2px at 70% 20%, #8fb5ff 0 40%, transparent 45%),
+    radial-gradient(2px 2px at 40% 70%, #8fb5ff 0 40%, transparent 45%),
+    radial-gradient(1.6px 1.6px at 85% 65%, #8fb5ff 0 40%, transparent 45%)
+    ;
+    animation: twinkle 6s linear infinite;
+  }
+  @keyframes twinkle{50%{opacity:.55}}
+
+  #wrap{position:relative; min-height:100%; display:grid; grid-template-rows:1fr auto; z-index:1}
+  #fieldWrap{
+    position:relative; overflow:hidden;
+    border-bottom:1px solid var(--stroke);
+    touch-action:none;
+    backdrop-filter: blur(2px);
+  }
+
+  /* 戦場グリッド */
+  #grid{
+    position:relative;
+    display:grid;
+    grid-template-columns:repeat(var(--grid-w), var(--tile));
+    grid-template-rows:repeat(var(--grid-h), var(--tile));
+    width:calc(var(--grid-w) * var(--tile));
+    height:calc(var(--grid-h) * var(--tile));
+    margin:0 auto;
+    touch-action:none;
+    outline:1px solid #0c1a2b;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.03), 0 10px 30px rgba(0,0,0,.45);
+    border-radius:16px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0) 45%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.045) 0 1px, transparent 1px 44px),
+      repeating-linear-gradient(90deg, rgba(255,255,255,.045) 0 1px, transparent 1px 44px),
+      #0b1220;
+  }
+  .cell{
+    width:var(--tile); height:var(--tile);
+    border:1px solid #0f172a33;
+    background:transparent;
+  }
+  .cell.wall{ background:linear-gradient(180deg,#0e1a2b,#0a1524); border-color:#0a122099 }
+  .cell.path{ background:linear-gradient(180deg, #0f304f99, #0c253c99) }
+  .cell.start{ background:linear-gradient(180deg,#0f513f,#0a2f26); box-shadow: inset 0 0 10px #0f513f55 }
+  .cell.goal{ background:linear-gradient(180deg,#4a1e1e,#2b0c0c); box-shadow: inset 0 0 10px #ef444422 }
+
+  /* エンティティ */
+  .entity{ position:absolute; pointer-events:none; translate:-50% -50%; }
+
+  .enemy{ width:28px;height:28px;border-radius:8px;
+    background:linear-gradient(145deg,#ff6b6b,#b91c1c);
+    box-shadow: var(--glow-red), 0 0 0 2px rgba(0,0,0,.25);
+  }
+  .enemy.tank{ width:36px;height:36px; background:linear-gradient(145deg,#9a1b1b,#5f0f0f) }
+  .enemy.bike{ width:24px;height:24px; background:linear-gradient(145deg,#ff9340,#cc5f0a) }
+  .enemy.boss{ width:48px;height:48px; background:linear-gradient(145deg,#7f1d1d,#4a0f0f); outline:3px solid #fecaca; box-shadow: var(--glow-red) }
+
+  .tower,.unit{
+    width:30px;height:30px;border-radius:10px;
+    background:linear-gradient(145deg,#7fb3ff,#2463eb);
+    border:2px solid #1d4ed8;
+    box-shadow: var(--glow);
+  }
+  .tower.sniper{ background:linear-gradient(145deg,#c7b8ff,#6d28d9); border-color:#6d28d9 }
+  .tower.mg{ background:linear-gradient(145deg,#6ee7b7,#059669); border-color:#059669 }
+  .unit.infantry{ background:linear-gradient(145deg,#ffc86b,#b45309); border-color:#b45309 }
+  .unit.vehicle{ background:linear-gradient(145deg,#e5e7eb,#475569); border-color:#475569 }
+
+  .trap.mine{
+    width:22px;height:22px;border-radius:50%;
+    background:radial-gradient(circle at 30% 30%, #ff92a3 0 40%, #a40317 60%);
+    border:2px dashed #7f1d1d;
+    box-shadow:0 0 12px rgba(244,63,94,.38);
+  }
+  .trap.slow{
+    width:34px;height:34px;border-radius:10px;
+    background:linear-gradient(145deg,#1e293bb3,#334155b3);
+    border:2px solid #334155;
+    box-shadow:0 0 14px rgba(96,165,250,.25) inset;
+  }
+
+  .bullet{
+    width:8px;height:8px;border-radius:50%;
+    background: radial-gradient(circle at 35% 35%, #fff7b0 0 40%, #eab308 55%, #c28705 100%);
+    box-shadow:0 0 12px rgba(234,179,8,.8);
+  }
+
+  .spark{
+    position:absolute; width:10px;height:10px; border-radius:50%;
+    background:radial-gradient(circle, #fff 0 25%, rgba(255,255,255,0) 70%);
+    pointer-events:none; translate:-50% -50%; opacity:.85; animation:spark .18s ease-out forwards;
+  }
+  @keyframes spark{ to{ transform:scale(1.8); opacity:0 } }
+
+  .ghost{
+    position:absolute; pointer-events:none; translate:-50% -50%;
+    border:2px dashed #93c5fd88; border-radius:12px; background:#60a5fa14; box-shadow: var(--glow);
+  }
+
+  /* 下バー（グラス） */
+  #bar{
+    position:relative;
+    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    padding:10px 12px calc(12px + env(safe-area-inset-bottom));
+    display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center;
+    min-height:var(--bar);
+    border-top:1px solid #ffffff14; backdrop-filter: blur(10px);
+  }
+  #stats{display:flex;gap:14px;align-items:center;font-size:14px;color:var(--muted)}
+  #stats b{color:var(--ink)}
+  #palette{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+  .item{
+    display:flex;flex-direction:column;align-items:center;gap:6px;
+    background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+    border:1px solid #ffffff20; padding:8px 10px; border-radius:12px; min-width:70px;
+    box-shadow:0 6px 20px rgba(0,0,0,.25);
+  }
+  .item.sel{outline:2px solid var(--accent)}
+  .item .ico{width:30px;height:30px;border-radius:8px}
+  .item .name{font-size:12px;color:#d7dee6}
+  .item .cost{font-size:11px;color:#a8b3bf}
+
+  /* 画面上コントロール */
+  #ctrls{position:absolute;left:12px;top:12px;display:flex;gap:8px;z-index:3}
+  .btn{
+    appearance:none;border:none;border-radius:999px;background:#111827cc;
+    color:#e5e7eb;padding:9px 14px;font-size:12px;border:1px solid #ffffff22; backdrop-filter: blur(8px);
+  }
+  .btn:active{transform:translateY(1px)}
+
+  /* オーバーレイ（グラス） */
+  .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45);z-index:5}
+  .overlay.show{display:flex}
+  .panel{
+    background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+    border:1px solid #ffffff22;border-radius:20px;max-width:560px;width:92%;padding:18px;
+    box-shadow:0 30px 80px rgba(0,0,0,.55); backdrop-filter: blur(12px);
+  }
+  .panel h1{font-size:22px;margin:0 0 8px}
+  .panel h2{font-size:16px;margin:12px 0 6px;color:#cbd5e1}
+  .panel p{margin:4px 0;color:#9aa4b2}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .chip{
+    border:1px solid #ffffff22;background:#111827b3;color:#e5e7eb;padding:10px 14px;border-radius:999px;font-size:14px
+  }
+  .chip.sel{outline:2px solid var(--accent)}
+
+  #toast{
+    position:absolute;left:50%;top:14px;transform:translateX(-50%);
+    background:#111827cc;border:1px solid #ffffff22;color:#e5e7eb;border-radius:999px;padding:8px 14px;font-size:13px;
+    opacity:0;transition:opacity .18s;z-index:6; backdrop-filter: blur(8px);
+  }
+  #toast.show{opacity:1}
 </style>
 </head>
 <body>
-<h1 id="title">Chrono Bulward v0.2.28</h1>
+<div class="stars" aria-hidden="true"></div>
 
-<div id="menu">
-  <button onclick="startGame()">ゲーム開始</button>
-  <button onclick="showSettings()">設定</button>
-  <button onclick="showHelp()">説明</button>
-</div>
+<div id="wrap">
+  <div id="fieldWrap">
+    <div id="ctrls">
+      <button class="btn" id="btnStartWave">Wave開始</button>
+      <button class="btn" id="btnPause">一時停止</button>
+      <button class="btn" id="btnSpeed">速度×1</button>
+    </div>
+    <div id="grid" aria-label="戦場"></div>
+    <div id="toast"></div>
 
-<!-- 設定画面 -->
-<div id="settings">
-  <h2>ユニット調整</h2>
-  <div id="unitSliders"></div>
-  <div style="margin-top:8px;">
-    <button onclick="backToMenu()">戻る</button>
-    <button onclick="applySettingsAndStart()">ゲーム開始</button>
+    <div id="overlay" class="overlay show" role="dialog" aria-modal="true">
+      <div class="panel">
+        <h1>Mobile TD — NeoGlass Edition</h1>
+        <p>タップ＆ドラッグでタワー/罠/ユニットを配置。全10ウェーブを防衛せよ！</p>
+        <h2>難易度を選択</h2>
+        <div class="row" id="difficulty">
+          <button class="chip" data-diff="easy">Easy</button>
+          <button class="chip sel" data-diff="normal">Normal</button>
+          <button class="chip" data-diff="hard">Hard</button>
+        </div>
+        <div class="row" style="justify-content:flex-end;margin-top:12px">
+          <button class="btn" id="btnStartGame">ゲーム開始</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="result" class="overlay" role="dialog" aria-modal="true">
+      <div class="panel">
+        <h1 id="resultTitle">結果</h1>
+        <p id="resultStats"></p>
+        <div class="row" style="justify-content:flex-end;margin-top:12px">
+          <button class="btn" id="btnBackTitle">タイトルへ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="bar">
+    <div id="stats">
+      <div>💰 <b id="money">0</b></div>
+      <div>❤️ <b id="life">0</b></div>
+      <div>📶 Wave <b id="wave">0</b>/10</div>
+    </div>
+    <div id="palette" aria-label="配置パレット"></div>
   </div>
 </div>
 
-<!-- 説明画面 -->
-<div id="help">
-  <h2>ゲームのルール</h2>
-  <p>自陣（下）からユニットを召喚し、敵陣（上）から進行してくる敵を防ぎます。<br>
-  ユニット同士が接触すると戦闘開始、どちらかが倒れるまで移動を停止して戦闘を続けます。</p>
-
-  <h2>勝敗条件</h2>
-  <ul>
-    <li>敵ユニットが自陣に到達すると自陣HPが減少</li>
-    <li>味方ユニットが敵陣に到達すると敵陣HPが減少</li>
-    <li>どちらかのHPが0になると勝敗が決定</li>
-  </ul>
-
-  <h2>主要ユニット</h2>
-  <ul>
-    <li><b>ナイト</b>：近接。標準的な耐久と攻撃</li>
-    <li><b>アーチャー</b>：遠距離。射程内を攻撃</li>
-    <li><b>クレリック</b>：回復。射程内の味方を回復</li>
-    <li><b>ゴーレム</b>：射程45の岩投げ攻撃（遠隔タンク）</li>
-    <li><b>ゴブリン／オーク</b>：敵の前衛</li>
-    <li><b>シャーマン／ファントム</b>：敵の遠隔攻撃</li>
-  </ul>
-
-  <button onclick="backToMenuFromHelp()">戻る</button>
-</div>
-
-<canvas id="gameCanvas" width="400" height="600"></canvas>
-
-<div id="ui">
-  <button onclick="chooseUnit('swordsman')">ナイト召喚</button>
-  <button onclick="chooseUnit('archer')">アーチャー召喚</button>
-  <button onclick="chooseUnit('healer')">クレリック召喚</button>
-  <button onclick="chooseUnit('golem')">ゴーレム召喚</button>
-</div>
-
 <script>
-/* =====================
-   Chrono Bulward v0.2.28
-   ゴーレム → 射程45の遠隔攻撃キャラ
-===================== */
+(()=>{"use strict";
+  /* ===== ユーティリティ ===== */
+  const $=(s,el=document)=>el.querySelector(s);
+  const $$=(s,el=document)=>Array.from(el.querySelectorAll(s));
+  const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+  const vibrate=(ms)=>{ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch{} };
 
-// ---- 基本ステータス ----
-let unitStats = {
-  swordsman:{hp:120, atk:10, speed:0.25, range:25},
-  archer:{hp:80,  atk:8,  speed:0.25, range:120},
-  healer:{hp:100, atk:10, speed:0.25, range:80},
-  goblin:{hp:60,  atk:5,  speed:0.20, range:25},
-  orc:   {hp:200, atk:15, speed:0.20, range:25},
-  shaman:{hp:120, atk:12, speed:0.25, range:120},
-  phantom:{hp:80, atk:10, speed:0.50, range:100},
-  golem: {hp:400, atk:20, speed:0.10, range:45} // 射程45
-};
-
-// ---- スライダー設定範囲 ----
-const unitConfig = {
-  swordsman:{name:"ナイト", props:{hp:[50,300], atk:[5,30], speed:[0.1,1,0.05], range:[10,100]}},
-  archer:   {name:"アーチャー", props:{hp:[40,200], atk:[5,30], speed:[0.1,1,0.05], range:[30,150]}},
-  healer:   {name:"クレリック", props:{hp:[40,200], atk:[5,30], speed:[0.1,1,0.05], range:[30,150]}},
-  goblin:   {name:"ゴブリン",  props:{hp:[20,200], atk:[2,20], speed:[0.1,1,0.05], range:[10,100]}},
-  orc:      {name:"オーク",    props:{hp:[100,500],atk:[10,50], speed:[0.05,0.5,0.05], range:[10,100]}},
-  shaman:   {name:"シャーマン", props:{hp:[50,250], atk:[5,30], speed:[0.1,0.5,0.05], range:[50,150]}},
-  phantom:  {name:"ファントム", props:{hp:[30,150], atk:[5,25], speed:[0.2,1,0.05], range:[30,120]}},
-  golem:    {name:"ゴーレム",  props:{hp:[200,1000],atk:[10,50],speed:[0.05,0.3,0.05], range:[30,80]}} // デフォルト45（unitStatsに依存）
-};
-
-// ---- 設定UI生成 ----
-const unitSlidersDiv = document.getElementById("unitSliders");
-if (unitSlidersDiv){
-  for (let key in unitConfig){
-    let html = `<div class="unit-settings"><h3>${unitConfig[key].name}</h3>`;
-    for (let prop in unitConfig[key].props){
-      const [min,max,step=1] = unitConfig[key].props[prop];
-      const val = unitStats[key][prop];
-      html += `${prop.toUpperCase()}: <input type="range" id="${key}_${prop}" min="${min}" max="${max}" step="${step}" value="${val}" oninput="updateLabel('${key}_${prop}')">
-               <span id="${key}_${prop}_val">${val}</span><br>`;
-    }
-    html += `</div>`;
-    unitSlidersDiv.innerHTML += html;
+  const toastEl=$('#toast'); let toastTimer=null;
+  function toast(msg){
+    toastEl.textContent=msg; toastEl.classList.add('show');
+    clearTimeout(toastTimer); toastTimer=setTimeout(()=>toastEl.classList.remove('show'),1200);
   }
-}
-function updateLabel(id){ const el=document.getElementById(id); const v=document.getElementById(id+"_val"); if(el&&v) v.textContent=el.value; }
-function applySettingsAndStart(){
-  for (let key in unitStats){
-    for (let prop in unitStats[key]){
-      const id = `${key}_${prop}`;
-      const el = document.getElementById(id);
-      if(el) unitStats[key][prop] = parseFloat(el.value);
-    }
-  }
-  startGame();
-}
 
-// ---- 画面切替 ----
-function showSettings(){ document.getElementById("menu").style.display="none"; document.getElementById("settings").style.display="block"; }
-function backToMenu(){   document.getElementById("settings").style.display="none"; document.getElementById("menu").style.display="block"; }
-function showHelp(){     document.getElementById("menu").style.display="none"; document.getElementById("help").style.display="block"; }
-function backToMenuFromHelp(){ document.getElementById("help").style.display="none"; document.getElementById("menu").style.display="block"; }
+  /* ===== 定数 ===== */
+  const GRID_W=12, GRID_H=16;
+  const TILE=()=>parseInt(getComputedStyle(document.documentElement).getPropertyValue('--tile'));
+  const START={x:0,y:Math.floor(GRID_H/2)}, GOAL={x:GRID_W-1,y:Math.floor(GRID_H/2)};
 
-// ---- ゲーム本体 ----
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-let playerBaseHP, enemyBaseHP, playerUnits, enemyUnits, projectiles, hitMarks, swingMarks;
-let pendingUnitType = null;
-let enemySpawnTimer = null;
-
-class Unit{
-  constructor(type, side, lane, y){
-    this.type=type; this.side=side; this.lane=lane;
-    this.x = lane*(canvas.width/5) + (canvas.width/10);
-    this.y = y;
-    const st = unitStats[type];
-    this.hp=st.hp; this.atk=st.atk; this.speed=st.speed||0.2; this.range=st.range||25;
-    this.role = (type==="archer")?"archer":(type==="healer")?"healer":"melee";
-    if(type==="shaman") this.role="shaman";
-    if(type==="phantom") this.role="phantom";
-    if(type==="golem") this.role="golemRanged"; // ゴーレム専用
-    this.color = (side==="player") ? (type==="archer"?"cyan":type==="healer"?"green":"blue") :"red";
-    const nameMap={swordsman:"ナ", archer:"弓", healer:"聖", goblin:"ゴ", orc:"オ", shaman:"シ", phantom:"フ", golem:"岩"};
-    this.label = nameMap[type]||"?";
-    this.target=null; this.cooldown=0;
-  }
-  draw(){
-    ctx.fillStyle=this.color;
-    ctx.beginPath(); ctx.arc(this.x,this.y,12,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle=(this.side==="player")?"white":"black";
-    ctx.font="14px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
-    ctx.fillText(this.label,this.x,this.y);
-  }
-  update(){
-    if(this.target){
-      if(this.target.hp<=0 || !inMeleeRange(this,this.target)) this.target=null;
-      else return; // 戦闘中は停止
-    }
-    this.y += (this.side==="player" ? -this.speed : this.speed);
-  }
-}
-
-class Projectile{
-  constructor(x,y,target,atk,color="white"){ this.x=x; this.y=y; this.target=target; this.atk=atk; this.speed=3; this.active=true; this.color=color; }
-  update(){
-    if(!this.target || this.target.hp<=0){ this.active=false; return; }
-    const dx=this.target.x-this.x, dy=this.target.y-this.y;
-    const d=Math.hypot(dx,dy);
-    if(d<5){ this.target.hp-=this.atk; hitMarks.push(new HitMark(this.target.x,this.target.y)); this.active=false; }
-    else { this.x += (dx/d)*this.speed; this.y += (dy/d)*this.speed; }
-  }
-  draw(){ ctx.fillStyle=this.color; ctx.beginPath(); ctx.arc(this.x,this.y,4,0,Math.PI*2); ctx.fill(); }
-}
-class HealProjectile{
-  constructor(x,y,target,amount){ this.x=x; this.y=y; this.target=target; this.amount=amount; this.speed=3; this.active=true; }
-  update(){
-    if(!this.target || this.target.hp<=0){ this.active=false; return; }
-    const dx=this.target.x-this.x, dy=this.target.y-this.y;
-    const d=Math.hypot(dx,dy);
-    if(d<5){ this.target.hp += this.amount; hitMarks.push(new HealMark(this.target.x,this.target.y)); this.active=false; }
-    else { this.x += (dx/d)*this.speed; this.y += (dy/d)*this.speed; }
-  }
-  draw(){ ctx.fillStyle="lime"; ctx.beginPath(); ctx.arc(this.x,this.y,4,0,Math.PI*2); ctx.fill(); }
-}
-class HitMark{ constructor(x,y){ this.x=x; this.y=y; this.life=15; } update(){ this.life--; }
-  draw(){ ctx.lineWidth=3; ctx.strokeStyle="red"; ctx.beginPath(); ctx.moveTo(this.x-8,this.y-8); ctx.lineTo(this.x+8,this.y+8);
-         ctx.moveTo(this.x+8,this.y-8); ctx.lineTo(this.x-8,this.y+8); ctx.stroke(); ctx.lineWidth=1; } }
-class HealMark{ constructor(x,y){ this.x=x; this.y=y; this.life=15; } update(){ this.life--; }
-  draw(){ ctx.strokeStyle="lime"; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(this.x,this.y,14,0,Math.PI*2); ctx.stroke(); ctx.lineWidth=1; } }
-class SwingMark{ constructor(x,y,side){ this.x=x; this.y=y; this.life=12; this.side=side; } update(){ this.life--; }
-  draw(){ ctx.save(); ctx.lineWidth=3; ctx.strokeStyle=(this.side==="player")?"#88f":"#f88";
-         ctx.beginPath(); ctx.arc(this.x,this.y,16,-Math.PI/3,0); ctx.stroke();
-         ctx.beginPath(); ctx.arc(this.x,this.y,12,0,Math.PI/3); ctx.stroke(); ctx.restore(); } }
-
-function inMeleeRange(a,b){
-  const laneDiff = Math.abs(a.lane-b.lane);
-  const dy = Math.abs(a.y-b.y);
-  if(laneDiff===0) return dy<=24;
-  if(laneDiff===1) return dy<=20;
-  return false;
-}
-function inUnitRange(a,b){
-  const dx = (a.lane-b.lane)*(canvas.width/5);
-  const dy = (a.y-b.y);
-  return Math.hypot(dx,dy) <= a.range;
-}
-
-function startGame(){
-  document.getElementById("menu").style.display="none";
-  document.getElementById("settings").style.display="none";
-  document.getElementById("help").style.display="none";
-  document.getElementById("title").style.display="none";
-  canvas.style.display="block";
-  document.getElementById("ui").style.display="block";
-
-  playerBaseHP=100; enemyBaseHP=100;
-  playerUnits=[]; enemyUnits=[]; projectiles=[]; hitMarks=[]; swingMarks=[];
-  if(enemySpawnTimer) clearInterval(enemySpawnTimer);
-  enemySpawnTimer = setInterval(spawnEnemy, 4000);
-
-  canvas.onclick = (e)=>{
-    if(!pendingUnitType) return;
-    const rect=canvas.getBoundingClientRect();
-    const lane=Math.floor((e.clientX-rect.left)/(canvas.width/5));
-    playerUnits.push(new Unit(pendingUnitType,"player",lane,canvas.height-40));
-    pendingUnitType=null;
+  const DIFFS={
+    easy:{ enemyHP:0.9, enemyNum:0.9, reward:1.15, startMoney:230, life:26 },
+    normal:{ enemyHP:1.0, enemyNum:1.0, reward:1.0, startMoney:185, life:20 },
+    hard:{ enemyHP:1.2, enemyNum:1.15, reward:0.9, startMoney:150, life:18 },
   };
 
-  requestAnimationFrame(loop);
-}
+  const ITEMS=[
+    { key:'tower_basic',  kind:'tower', name:'基本',   cost:60,  range:2.6, dmg:10, rof:1.0, iconClass:'tower' },
+    { key:'tower_sniper', kind:'tower', name:'狙撃',   cost:115, range:5.2, dmg:30, rof:0.42, iconClass:'tower sniper' },
+    { key:'tower_mg',     kind:'tower', name:'連射',   cost:88,  range:2.3, dmg:6,  rof:3.0, iconClass:'tower mg' },
+    { key:'trap_mine',    kind:'trap',  name:'地雷',   cost:35,  iconClass:'trap mine' },
+    { key:'trap_slow',    kind:'trap',  name:'減速',   cost:55,  slow:0.55, iconClass:'trap slow' },
+    { key:'unit_inf',     kind:'unit',  name:'歩兵',   cost:50,  range:1.9, dmg:8,  rof:1.2, iconClass:'unit infantry' },
+    { key:'unit_vehicle', kind:'unit',  name:'車両',   cost:120, range:2.4, dmg:14, rof:1.0, iconClass:'unit vehicle' },
+  ];
 
-function spawnEnemy(){
-  const types=["goblin","orc","golem","shaman","phantom"];
-  const type=types[Math.floor(Math.random()*types.length)];
-  const lane=Math.floor(Math.random()*5);
-  enemyUnits.push(new Unit(type,"enemy",lane,40));
-}
+  const WAVES=[
+    { list:[{type:'inf', n:12, gap:0.7}] },
+    { list:[{type:'inf', n:16, gap:0.65}] },
+    { list:[{type:'inf', n:18, gap:0.6}] },
+    { list:[{type:'inf', n:16, gap:0.5},{type:'bike', n:6, gap:0.9}] },
+    { list:[{type:'bike', n:10, gap:0.8},{type:'inf', n:10, gap:0.6}] },
+    { list:[{type:'bike', n:14, gap:0.7}] },
+    { list:[{type:'tank', n:5, gap:1.2},{type:'bike', n:8, gap:0.8}] },
+    { list:[{type:'tank', n:6, gap:1.1},{type:'inf', n:12, gap:0.6}] },
+    { list:[{type:'tank', n:8, gap:1.0}] },
+    { list:[{type:'boss', n:1, gap:0.0}] },
+  ];
 
-function loop(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.strokeStyle="#555";
-  for(let i=1;i<5;i++){ ctx.beginPath(); ctx.moveTo(i*canvas.width/5,0); ctx.lineTo(i*canvas.width/5,canvas.height); ctx.stroke(); }
-  ctx.fillStyle="white";
-  ctx.fillText(`自陣HP:${playerBaseHP}`,10,15);
-  ctx.fillText(`敵陣HP:${enemyBaseHP}`,280,15);
+  const ENEMY_BASE={
+    inf:{ hp:30, spd:1.0, reward:6, dmg:1, class:'enemy' },
+    bike:{ hp:26, spd:1.8, reward:8, dmg:1, class:'enemy bike' },
+    tank:{ hp:180, spd:0.6, reward:20, dmg:2, class:'enemy tank' },
+    boss:{ hp:1200, spd:0.5, reward:120, dmg:5, class:'enemy boss' },
+  };
 
-  for(const u of [...playerUnits,...enemyUnits]){ u.update(); u.draw(); }
+  /* ===== レイアウト最適化（見切れゼロ） ===== */
+  const gridEl = $('#grid'), fieldWrap = $('#fieldWrap'), barEl = $('#bar');
 
-  // プレイヤーユニットの行動
-  for(const p of playerUnits){
-    for(const e of enemyUnits){
-      if(inMeleeRange(p,e)){
-        p.target=e; e.target=p;
-        if(p.cooldown<=0){ e.hp-=p.atk; hitMarks.push(new HitMark(e.x,e.y)); swingMarks.push(new SwingMark(p.x,p.y,"player")); p.cooldown=30; }
-        if(e.cooldown<=0){ p.hp-=e.atk; hitMarks.push(new HitMark(p.x,p.y)); swingMarks.push(new SwingMark(e.x,e.y,"enemy")); e.cooldown=40; }
-      }else{
-        if(p.role==="archer" && inUnitRange(p,e) && p.cooldown<=0){
-          projectiles.push(new Projectile(p.x,p.y-12,e,p.atk,"white")); p.cooldown=60;
-        }
-        if(p.role==="golemRanged" && inUnitRange(p,e) && p.cooldown<=0){
-          projectiles.push(new Projectile(p.x,p.y-12,e,p.atk,"brown")); p.cooldown=90;
-        }
-      }
+  function measureViewportH(){
+    // 実効表示高さ（アドレスバー縮小などに追随）
+    return (window.visualViewport?.height ?? window.innerHeight);
+  }
+  function resizeField(){
+    const vh = measureViewportH();
+    const barH = barEl.getBoundingClientRect().height || parseInt(getComputedStyle(document.documentElement).getPropertyValue('--bar')) || 100;
+    // 余白を少し引く（上下合わせて16px）
+    const usableH = Math.max(220, vh - barH - 16);
+    const usableW = Math.max(280, window.innerWidth - 16);
+    // グリッドが必ず収まるタイルサイズ（指先タップを考慮して下限26px）
+    const tileH = Math.floor(usableH / GRID_H);
+    const tileW = Math.floor(usableW / GRID_W);
+    const tile = Math.max(26, Math.min(tileH, tileW));
+    document.documentElement.style.setProperty('--tile', tile+'px');
+
+    // 高さ確保（セーフエリア込み）
+    fieldWrap.style.minHeight = `${Math.ceil(usableH)}px`;
+  }
+  // 初回＋動的変化に追随
+  window.addEventListener('resize', resizeField);
+  window.visualViewport && window.visualViewport.addEventListener('resize', resizeField);
+
+  /* ===== マップ＆描画 ===== */
+  const map = createBaseMap();
+  function createBaseMap(){
+    // 0:空き 1:壁 2:スロー 3:地雷 4:占有
+    const arr = Array.from({length:GRID_H},()=>Array(GRID_W).fill(0));
+    // 迷路感：上下に低い壁（所々欠け）
+    for(let x=2;x<GRID_W-2;x++){
+      const y1=Math.floor(GRID_H/2)-3, y2=Math.floor(GRID_H/2)+3;
+      if(x%4!==0){ arr[y1][x]=1; arr[y2][x]=1; }
     }
-    // クレリックの回復
-    if(p.role==="healer" && p.cooldown<=0){
-      for(const ally of playerUnits){
-        if(ally!==p && ally.hp>0 && ally.hp<unitStats[ally.type].hp && inUnitRange(p,ally)){
-          projectiles.push(new HealProjectile(p.x,p.y-12,ally,p.atk));
-          p.cooldown=90;
-          break;
-        }
+    arr[START.y][START.x]=0; arr[GOAL.y][GOAL.x]=0;
+    return arr;
+  }
+
+  function renderGrid(){
+    gridEl.innerHTML='';
+    for(let y=0;y<GRID_H;y++){
+      for(let x=0;x<GRID_W;x++){
+        const d=document.createElement('div'); d.className='cell';
+        d.dataset.x=x; d.dataset.y=y;
+        if(map[y][x]===1) d.classList.add('wall');
+        if(x===START.x && y===START.y) d.classList.add('start');
+        if(x===GOAL.x && y===GOAL.y) d.classList.add('goal');
+        gridEl.appendChild(d);
       }
     }
   }
 
-  // 敵ユニットの遠隔行動
-  for(const e of enemyUnits){
-    if(e.target && e.target.hp>0){
-      // 近接中は移動・射撃なし
+  /* ===== A* ===== */
+  function astar(start, goal, mapOverride){
+    const grid=mapOverride||map, key=(x,y)=>`${x},${y}`;
+    const open=[{x:start.x,y:start.y,g:0,f:0}], came=new Map();
+    const gscore=new Map([[key(start.x,start.y),0]]);
+    function heur(a,b){ return Math.abs(a.x-b.x)+Math.abs(a.y-b.y); }
+    function neighbors(x,y){
+      const arr=[]; [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{
+        const nx=x+dx, ny=y+dy;
+        if(nx>=0&&nx<GRID_W&&ny>=0&&ny<GRID_H && grid[ny][nx]!==1 && grid[ny][nx]!==4) arr.push({x:nx,y:ny});
+      }); return arr;
+    }
+    while(open.length){
+      let best=0; for(let i=1;i<open.length;i++){ if(open[i].f<open[best].f) best=i; }
+      const cur=open.splice(best,1)[0];
+      if(cur.x===goal.x && cur.y===goal.y){
+        const path=[{x:cur.x,y:cur.y}]; let ck=key(cur.x,cur.y);
+        while(came.has(ck)){ const p=came.get(ck); path.push(p); ck=key(p.x,p.y); }
+        return path.reverse();
+      }
+      for(const nb of neighbors(cur.x,cur.y)){
+        const g=(gscore.get(key(cur.x,cur.y)) ?? Infinity)+1, nk=key(nb.x,nb.y);
+        if(g < (gscore.get(nk) ?? Infinity)){
+          came.set(nk,{x:cur.x,y:cur.y}); gscore.set(nk,g);
+          const f = g + heur(nb,goal);
+          if(!open.find(n=>n.x===nb.x&&n.y===nb.y)) open.push({x:nb.x,y:nb.y,g,f});
+        }
+      }
+    }
+    return null;
+  }
+  function paintPath(path){
+    $$('.cell').forEach(c=>c.classList.remove('path'));
+    if(!path) return;
+    for(const p of path){
+      const c=$(`.cell[data-x="${p.x}"][data-y="${p.y}"]`);
+      if(c && !c.classList.contains('start') && !c.classList.contains('goal')) c.classList.add('path');
+    }
+  }
+
+  /* ===== 状態 ===== */
+  const state={
+    running:false, paused:false, speed:1, diff:'normal',
+    money:0, life:20, wave:0,
+    enemies:[], towers:[], units:[], traps:[], bullets:[]
+  };
+  const moneyEl=$('#money'), lifeEl=$('#life'), waveEl=$('#wave');
+  function refreshStats(){ moneyEl.textContent=state.money|0; lifeEl.textContent=state.life; waveEl.textContent=state.wave; }
+
+  /* ===== パレット ===== */
+  function buildPalette(){
+    const pal=$('#palette'); pal.innerHTML='';
+    ITEMS.forEach((it,i)=>{
+      const d=document.createElement('button'); d.className='item'; d.type='button'; d.dataset.index=i; d.dataset.key=it.key;
+      d.innerHTML=`<div class="ico ${it.iconClass}"></div><div class="name">${it.name}</div><div class="cost">${it.cost}</div>`;
+      pal.appendChild(d);
+    });
+  }
+
+  /* ===== 配置 ===== */
+  let placing=null, placingCell=null;
+  $('#palette').addEventListener('pointerdown', (e)=>{
+    const btn=e.target.closest('.item'); if(!btn) return; e.preventDefault();
+    const idx=+btn.dataset.index, item=ITEMS[idx]; startPlacing(item,e);
+  });
+  gridEl.addEventListener('pointerdown',(e)=>{
+    if(!placing) return; e.preventDefault();
+    const r=gridEl.getBoundingClientRect();
+    const gx=clamp(Math.floor((e.clientX - r.left)/TILE()),0,GRID_W-1);
+    const gy=clamp(Math.floor((e.clientY - r.top)/TILE()),0,GRID_H-1);
+    placingCell={x:gx,y:gy}; tryPlace(placing.item,gx,gy); cancelPlacing();
+  });
+
+  function startPlacing(item,e){
+    if(state.paused){ toast('一時停止中'); return; }
+    if(state.money<item.cost){ toast('お金が足りません'); vibrate(30); return; }
+    $$('.item').forEach(x=>x.classList.remove('sel'));
+    const src=$(`.item[data-key="${item.key}"]`); if(src) src.classList.add('sel');
+
+    const g=document.createElement('div'); g.className='ghost';
+    const size=item.kind==='trap' && item.key==='trap_slow' ? 34 : 30;
+    g.style.width=size+'px'; g.style.height=size+'px'; gridEl.appendChild(g);
+    placing={item,ghostEl:g}; moveGhost(e);
+
+    window.addEventListener('pointermove',moveGhost);
+    window.addEventListener('pointerup',endPlacing,{once:true});
+    window.addEventListener('pointercancel',cancelPlacing,{once:true});
+  }
+  function moveGhost(e){
+    if(!placing) return;
+    const r=gridEl.getBoundingClientRect();
+    const x=(e.clientX ?? e.touches?.[0]?.clientX), y=(e.clientY ?? e.touches?.[0]?.clientY);
+    if(x==null||y==null) return;
+    const gx=clamp(Math.floor((x-r.left)/TILE()),0,GRID_W-1);
+    const gy=clamp(Math.floor((y-r.top)/TILE()),0,GRID_H-1);
+    placingCell={x:gx,y:gy};
+    placing.ghostEl.style.left=(gx*TILE()+TILE()/2)+'px';
+    placing.ghostEl.style.top=(gy*TILE()+TILE()/2)+'px';
+  }
+  function endPlacing(){
+    window.removeEventListener('pointermove',moveGhost);
+    if(!placingCell){ cancelPlacing(); return; }
+    tryPlace(placing.item, placingCell.x, placingCell.y);
+    cancelPlacing();
+  }
+  function cancelPlacing(){
+    if(placing){ placing.ghostEl.remove(); placing=null; }
+    $$('.item').forEach(x=>x.classList.remove('sel'));
+  }
+
+  function cellBlockedForPlacement(x,y){
+    if((x===START.x&&y===START.y)||(x===GOAL.x&&y===GOAL.y)) return true;
+    if(map[y][x]===1) return true;
+    return false;
+  }
+  function tryPlace(item,x,y){
+    if(cellBlockedForPlacement(x,y)){ toast('ここには置けません'); vibrate(15); return; }
+    const temp=map.map(r=>r.slice());
+    if(item.kind==='trap'){
+      if(temp[y][x]!==0){ toast('ここには置けません'); vibrate(15); return; }
+      temp[y][x]=(item.key==='trap_slow')?2:3;
     }else{
-      if(e.role==="shaman" && e.cooldown<=0 && playerUnits.length>0){
-        const t=playerUnits[Math.floor(Math.random()*playerUnits.length)];
-        if(inUnitRange(e,t)){ projectiles.push(new Projectile(e.x,e.y+12,t,e.atk,"purple")); e.cooldown=80; }
-      }
-      if(e.role==="phantom" && e.cooldown<=0 && playerUnits.length>0){
-        const t=playerUnits[Math.floor(Math.random()*playerUnits.length)];
-        if(inUnitRange(e,t)){ projectiles.push(new Projectile(e.x,e.y+12,t,e.atk,"yellow")); e.cooldown=50; }
-      }
+      if(temp[y][x]!==0){ toast('ここには置けません'); vibrate(15); return; }
+      temp[y][x]=4;
     }
-  }
+    const p=astar(START,GOAL,temp);
+    if(!p){ toast('経路をふさげません'); vibrate(25); return; }
 
-  // クールダウン進行
-  for(const u of [...playerUnits,...enemyUnits]) if(u.cooldown>0) u.cooldown--;
+    if(state.money<item.cost){ toast('お金が足りません'); return; }
+    state.money-=item.cost; refreshStats();
 
-  // 飛翔体・ヒット演出
-  for(const pr of projectiles){ pr.update(); pr.draw(); }
-  projectiles = projectiles.filter(pr=>pr.active);
-
-  for(const h of hitMarks){ h.update(); h.draw(); }
-  hitMarks = hitMarks.filter(h=>h.life>0);
-
-  for(const s of swingMarks){ s.update(); s.draw(); }
-  swingMarks = swingMarks.filter(s=>s.life>0);
-
-  // 到達処理（ベースダメージ）
-  playerUnits = playerUnits.filter(u=>u.hp>0 && u.y>0);
-  enemyUnits  = enemyUnits.filter(u=>u.hp>0 && u.y<canvas.height);
-  for(const e of enemyUnits){ if(e.y>=canvas.height-30){ playerBaseHP-=e.atk; e.hp=0; } }
-  for(const p of playerUnits){ if(p.y<=30){ enemyBaseHP-=p.atk; p.hp=0; } }
-
-  // 勝敗
-  if(playerBaseHP<=0){ endScreen("GAME OVER","red"); return; }
-  if(enemyBaseHP<=0){ endScreen("VICTORY!","yellow"); return; }
-
-  requestAnimationFrame(loop);
-}
-
-function endScreen(text,color){
-  if(enemySpawnTimer) { clearInterval(enemySpawnTimer); enemySpawnTimer=null; }
-  ctx.fillStyle=color; ctx.font="30px sans-serif"; ctx.fillText(text, 120, 300);
-}
-
-function chooseUnit(type){ pendingUnitType=type; }
-</script>
-</body>
-</html>
+    if(item.kind==='trap'){
+      if(item.key==='trap_slow'){ map[y][x]=2; spawnTrap(x,y,'slow',item); }
+      else{ map[y][x]=3; spawnTrap(x,y,'mine',item); }
+      SE.place();
+    }else if(item.kind==='tower'){ map[y][x]=4; sp
