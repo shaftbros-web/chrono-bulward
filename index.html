@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward v0.2.5</title>
+<title>Chrono Bulward v0.2.6</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
@@ -17,7 +17,7 @@
 </style>
 </head>
 <body>
-<h1 id="title">Chrono Bulward v0.2.5</h1>
+<h1 id="title">Chrono Bulward v0.2.6</h1>
 
 <!-- タイトルメニュー -->
 <div id="menu">
@@ -46,18 +46,18 @@
 
 <script>
 /* =====================
-   Chrono Bulward v0.2.5
-   全ユニット接触停止 & 射程調整
+   Chrono Bulward v0.2.6
+   射程判定修正版
 ===================== */
 let unitStats = {
   swordsman:{hp:120, atk:10, speed:0.25, range:25},
-  archer:{hp:80, atk:8, speed:0.25, range:80},   // 射程調整
+  archer:{hp:80, atk:8, speed:0.25, range:80},
   healer:{hp:100, atk:10, speed:0.25, range:80},
   goblin:{hp:60, atk:5, speed:0.2, range:25},
   orc:{hp:200, atk:15, speed:0.2, range:25},
   golem:{hp:400, atk:20, speed:0.1, range:25},
-  shaman:{hp:120, atk:12, speed:0.25, range:90}, // 射程調整
-  phantom:{hp:80, atk:10, speed:0.5, range:70},  // 射程調整
+  shaman:{hp:120, atk:12, speed:0.25, range:90},
+  phantom:{hp:80, atk:10, speed:0.5, range:70}, // ファントム
   ogre:{hp:600, atk:40, range:40},
   dragon:{hp:1500, atk:100, range:80}
 };
@@ -201,8 +201,16 @@ class HealMark { constructor(x,y){ this.x=x; this.y=y; this.life=15; }
 /* =====================
    ゲームループ
 ===================== */
-function inMeleeRange(u1,u2){ return (Math.abs(u1.lane-u2.lane)<=1 && Math.abs(u1.y-u2.y)<=u1.range); }
-function inUnitRange(u1,u2){ return (Math.abs(u1.lane-u2.lane)<=3 && Math.abs(u1.y-u2.y)<=u1.range); }
+// ★ 射程判定を距離ベースに修正
+function inMeleeRange(u1,u2){ 
+  return (Math.abs(u1.lane-u2.lane)<=1 && Math.abs(u1.y-u2.y)<=u1.range); 
+}
+function inUnitRange(u1,u2){
+  let dx = (u1.lane - u2.lane) * (canvas.width/5); // レーン距離を横距離に換算
+  let dy = u1.y - u2.y;
+  let dist = Math.sqrt(dx*dx + dy*dy);
+  return dist <= u1.range;
+}
 
 function startGame(){
   document.getElementById("menu").style.display="none";
@@ -245,12 +253,8 @@ function loop(){
     for(let e of enemyUnits){
       if(inMeleeRange(p,e)){
         p.target=e; e.target=p;
-        if(p.cooldown<=0){
-          e.hp-=p.atk; hitMarks.push(new HitMark(e.x,e.y)); p.cooldown=30;
-        }
-        if(e.cooldown<=0){
-          p.hp-=e.atk; hitMarks.push(new HitMark(p.x,p.y)); e.cooldown=40;
-        }
+        if(p.cooldown<=0){ e.hp-=p.atk; hitMarks.push(new HitMark(e.x,e.y)); p.cooldown=30; }
+        if(e.cooldown<=0){ p.hp-=e.atk; hitMarks.push(new HitMark(p.x,p.y)); e.cooldown=40; }
       } else {
         if(p.role==="archer" && inUnitRange(p,e) && p.cooldown<=0){
           projectiles.push(new Projectile(p.x,p.y-12,e,p.atk,"white"));
@@ -271,7 +275,7 @@ function loop(){
   // 敵の特殊行動
   for(let e of enemyUnits){
     if(e.target && e.target.hp>0){
-      // 接触中 → 殴り合いは update() 内で処理済み
+      // 接触中は update() 内で停止して殴り合い
     } else {
       if(e.role==="shaman" && e.cooldown<=0){
         if(playerUnits.length>0){
