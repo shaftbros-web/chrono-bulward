@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward v0.2.15</title>
+<title>Chrono Bulward v0.2.16</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
@@ -18,7 +18,7 @@
 </style>
 </head>
 <body>
-<h1 id="title">Chrono Bulward v0.2.15</h1>
+<h1 id="title">Chrono Bulward v0.2.16</h1>
 
 <div id="menu">
   <button onclick="startGame()">ゲーム開始</button>
@@ -73,8 +73,8 @@
 
 <script>
 /* =====================
-   Chrono Bulward v0.2.15
-   ユニット名変更
+   Chrono Bulward v0.2.16
+   開始できる完全版
 ===================== */
 let unitStats = {
   swordsman:{hp:120, atk:10, speed:0.25, range:25},
@@ -89,7 +89,7 @@ let unitStats = {
   dragon:{hp:1500, atk:100, range:80}
 };
 
-/* === 設定画面処理（省略せず v0.2.14 と同じ） === */
+/* === 設定画面処理 === */
 const unitConfig = {
   swordsman:{name:"ナイト", props:{hp:[50,300], atk:[5,30], speed:[0.1,1,0.05], range:[10,100]}},
   archer:{name:"アーチャー", props:{hp:[40,200], atk:[5,30], speed:[0.1,1,0.05], range:[30,150]}},
@@ -127,12 +127,14 @@ function applySettingsAndStart(){
   }
   startGame();
 }
-/* ★説明画面の切替 */
 function showHelp(){document.getElementById("menu").style.display="none";document.getElementById("help").style.display="block";}
 function backToMenuFromHelp(){document.getElementById("help").style.display="none";document.getElementById("menu").style.display="block";}
 
-/* === ゲーム本体は v0.2.13 と同じ === */
-/* Unit, Projectile, HealProjectile, HitMark, HealMark, SwingMark, inMeleeRange, inUnitRange, startGame, loop, chooseUnit */
+/* === ゲーム本体 === */
+const canvas=document.getElementById("gameCanvas");
+const ctx=canvas.getContext("2d");
+let playerBaseHP, enemyBaseHP, playerUnits, enemyUnits, projectiles, hitMarks, swingMarks;
+let pendingUnitType=null;
 
 class Unit {
   constructor(type, side, lane, y){
@@ -152,29 +154,73 @@ class Unit {
       goblin:"ゴ", orc:"オ", golem:"ゴレ",
       shaman:"シ", phantom:"フ", ogre:"巨", dragon:"竜"
     };
-    this.label = nameMap[type] || "?";
+    this.label=nameMap[type]||"?";
     this.target=null; this.cooldown=0;
   }
   draw(){
     ctx.fillStyle=this.color;
     ctx.beginPath(); ctx.arc(this.x,this.y,12,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle = (this.side==="player") ? "white" : "black";
+    ctx.fillStyle=(this.side==="player")?"white":"black";
     ctx.font="14px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
-    ctx.fillText(this.label, this.x, this.y);
+    ctx.fillText(this.label,this.x,this.y);
   }
   update(){
     if(this.target){
-      if(this.target.hp <= 0 || !inMeleeRange(this,this.target)){
-        this.target = null;
-      } else {
-        return;
-      }
+      if(this.target.hp<=0||!inMeleeRange(this,this.target)){ this.target=null; }
+      else{ return; }
     }
     if(this.side==="player") this.y-=this.speed; else this.y+=this.speed;
   }
 }
 
-/* --- Projectile, HealProjectile, HitMark, HealMark, SwingMark, 判定, startGame, loop, chooseUnit は v0.2.13 と同じ --- */
-</script>
-</body>
-</html>
+class Projectile{
+  constructor(x,y,target,atk,color="white"){this.x=x;this.y=y;this.target=target;this.atk=atk;this.speed=3;this.active=true;this.color=color;}
+  update(){if(!this.target||this.target.hp<=0){this.active=false;return;}
+    let dx=this.target.x-this.x,dy=this.target.y-this.y;let dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<5){this.target.hp-=this.atk;hitMarks.push(new HitMark(this.target.x,this.target.y));this.active=false;}
+    else{this.x+=(dx/dist)*this.speed;this.y+=(dy/dist)*this.speed;}}
+  draw(){ctx.fillStyle=this.color;ctx.beginPath();ctx.arc(this.x,this.y,4,0,Math.PI*2);ctx.fill();}
+}
+class HealProjectile{
+  constructor(x,y,target,amount){this.x=x;this.y=y;this.target=target;this.amount=amount;this.speed=3;this.active=true;}
+  update(){if(!this.target||this.target.hp<=0){this.active=false;return;}
+    let dx=this.target.x-this.x,dy=this.target.y-this.y;let dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<5){this.target.hp+=this.amount;hitMarks.push(new HealMark(this.target.x,this.target.y));this.active=false;}
+    else{this.x+=(dx/dist)*this.speed;this.y+=(dy/dist)*this.speed;}}
+  draw(){ctx.fillStyle="lime";ctx.beginPath();ctx.arc(this.x,this.y,4,0,Math.PI*2);ctx.fill();}
+}
+class HitMark{constructor(x,y){this.x=x;this.y=y;this.life=15;}update(){this.life--;}
+  draw(){ctx.lineWidth=3;ctx.strokeStyle="red";ctx.beginPath();ctx.moveTo(this.x-8,this.y-8);ctx.lineTo(this.x+8,this.y+8);ctx.moveTo(this.x+8,this.y-8);ctx.lineTo(this.x-8,this.y+8);ctx.stroke();ctx.lineWidth=1;}}
+class HealMark{constructor(x,y){this.x=x;this.y=y;this.life=15;}update(){this.life--;}
+  draw(){ctx.strokeStyle="lime";ctx.lineWidth=3;ctx.beginPath();ctx.arc(this.x,this.y,14,0,Math.PI*2);ctx.stroke();ctx.lineWidth=1;}}
+class SwingMark{constructor(x,y,side){this.x=x;this.y=y;this.life=12;this.side=side;}update(){this.life--;}
+  draw(){ctx.save();ctx.lineWidth=3;ctx.strokeStyle=(this.side==="player")?"#88f":"#f88";
+    ctx.beginPath();ctx.arc(this.x,this.y,16,-Math.PI/3,0);ctx.stroke();
+    ctx.beginPath();ctx.arc(this.x,this.y,12,0,Math.PI/3);ctx.stroke();ctx.restore();}}
+
+function inMeleeRange(u1,u2){const laneDiff=Math.abs(u1.lane-u2.lane);const dy=Math.abs(u1.y-u2.y);
+  if(laneDiff===0){return dy<=24;}else if(laneDiff===1){return dy<=20;}return false;}
+function inUnitRange(u1,u2){let dx=(u1.lane-u2.lane)*(canvas.width/5);let dy=u1.y-u2.y;let dist=Math.sqrt(dx*dx+dy*dy);return dist<=u1.range;}
+
+function startGame(){
+  document.getElementById("menu").style.display="none";
+  document.getElementById("settings").style.display="none";
+  document.getElementById("title").style.display="none";
+  canvas.style.display="block";document.getElementById("ui").style.display="block";
+  playerBaseHP=100;enemyBaseHP=100;playerUnits=[];enemyUnits=[];projectiles=[];hitMarks=[];swingMarks=[];
+  canvas.onclick=(e)=>{if(!pendingUnitType)return;let rect=canvas.getBoundingClientRect();let lane=Math.floor((e.clientX-rect.left)/(canvas.width/5));playerUnits.push(new Unit(pendingUnitType,"player",lane,canvas.height-40));pendingUnitType=null;};
+  setInterval(()=>{const enemyTypes=["goblin","orc","golem","shaman","phantom"];let type=enemyTypes[Math.floor(Math.random()*enemyTypes.length)];let lane=Math.floor(Math.random()*5);enemyUnits.push(new Unit(type,"enemy",lane,40));},4000);
+  loop();
+}
+
+function loop(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle="#555";for(let i=1;i<5;i++){ctx.beginPath();ctx.moveTo(i*canvas.width/5,0);ctx.lineTo(i*canvas.width/5,canvas.height);ctx.stroke();}
+  ctx.fillStyle="white";ctx.fillText(`自陣HP:${playerBaseHP}`,10,15);ctx.fillText(`敵陣HP:${enemyBaseHP}`,280,15);
+  for(let u of [...playerUnits,...enemyUnits]){u.update();u.draw();}
+  for(let p of playerUnits){for(let e of enemyUnits){if(inMeleeRange(p,e)){p.target=e;e.target=p;
+        if(p.cooldown<=0){e.hp-=p.atk;hitMarks.push(new HitMark(e.x,e.y));swingMarks.push(new SwingMark(p.x,p.y,"player"));p.cooldown=30;}
+        if(e.cooldown<=0){p.hp-=e.atk;hitMarks.push(new HitMark(p.x,p.y));swingMarks.push(new SwingMark(e.x,e.y,"enemy"));e.cooldown=40;}}
+      else{if(p.role==="archer"&&inUnitRange(p,e)&&p.cooldown<=0){projectiles.push(new Projectile(p.x,p.y-12,e,p.atk,"white"));p.cooldown=60;}}}
+    if(p.role==="healer"&&p.cooldown<=0){for(let ally of playerUnits){if(ally!==p&&ally.hp>0&&ally.hp<unitStats[ally.type].hp&&inUnitRange(p,ally)){projectiles.push(new HealProjectile(p.x,p.y-12,ally,p.atk));p.cooldown=90;}}}}
+  for(let e of enemyUnits){if(e.target&&e.target.hp>0){}else{if(e.role==="shaman"&&e.cool
