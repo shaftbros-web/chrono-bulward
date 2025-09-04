@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chrono Bulward v0.2</title>
+<title>Chrono Bulward v0.2.1</title>
 <style>
   body { margin:0; background:#222; color:#eee; font-family:monospace; text-align:center; }
   #gameCanvas { background:#333; display:none; margin:0 auto; border:2px solid #000; }
@@ -17,7 +17,7 @@
 </style>
 </head>
 <body>
-<h1 id="title">Chrono Bulward v0.2</h1>
+<h1 id="title">Chrono Bulward v0.2.1</h1>
 
 <!-- タイトルメニュー -->
 <div id="menu">
@@ -46,8 +46,8 @@
 
 <script>
 /* =====================
-   Chrono Bulward v0.2
-   敵ユニット追加版
+   Chrono Bulward v0.2.1
+   敵追加＋バグ修正版
 ===================== */
 let unitStats = {
   swordsman:{hp:120, atk:10, speed:0.25, range:25},
@@ -62,7 +62,9 @@ let unitStats = {
   dragon:{hp:1500, atk:100, range:80}
 };
 
-/* 設定画面スライダー生成 */
+/* =====================
+   設定画面スライダー
+===================== */
 const unitConfig = {
   swordsman:{name:"剣士", props:{hp:[50,300], atk:[5,30], speed:[0.1,1,0.05], range:[10,100]}},
   archer:{name:"弓兵", props:{hp:[40,200], atk:[5,30], speed:[0.1,1,0.05], range:[50,300]}},
@@ -75,6 +77,7 @@ const unitConfig = {
   ogre:{name:"巨大オーガ(ボス)", props:{hp:[200,2000], atk:[20,200], range:[20,200]}},
   dragon:{name:"邪竜(ボス)", props:{hp:[500,5000], atk:[50,500], range:[50,500]}}
 };
+
 const unitSlidersDiv = document.getElementById("unitSliders");
 for (let key in unitConfig){
   let html = `<div class="unit-settings"><h3>${unitConfig[key].name}</h3>`;
@@ -114,7 +117,7 @@ const ctx = canvas.getContext("2d");
 let playerBaseHP, enemyBaseHP, playerUnits, enemyUnits, projectiles, hitMarks;
 let pendingUnitType=null;
 
-/* --- クラス定義（省略部分は前バージョン同様） --- */
+/* --- クラス定義 --- */
 class Unit {
   constructor(type, side, lane, y){
     this.type=type; this.side=side; this.lane=lane;
@@ -134,8 +137,77 @@ class Unit {
   update(){ if(this.target&&this.target.hp>0)return; this.target=null;
     if(this.side==="player") this.y-=this.speed; else this.y+=this.speed; }
 }
-/* Projectile, HealProjectile, HitMark, HealMark は前バージョンのまま */
 
+class Projectile {
+  constructor(x,y,target,atk){ this.x=x; this.y=y; this.target=target; this.atk=atk; this.speed=3; this.active=true; }
+  update(){
+    if(!this.target||this.target.hp<=0){this.active=false; return;}
+    let dx=this.target.x-this.x, dy=this.target.y-this.y; let dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<5){ this.target.hp-=this.atk; hitMarks.push(new HitMark(this.target.x,this.target.y)); this.active=false; }
+    else{ this.x+=(dx/dist)*this.speed; this.y+=(dy/dist)*this.speed; }
+  }
+  draw(){ ctx.strokeStyle="white"; ctx.beginPath(); ctx.moveTo(this.x,this.y); ctx.lineTo(this.x,this.y-4); ctx.stroke(); }
+}
+
+class HealProjectile {
+  constructor(x,y,target,amount){
+    this.x=x; this.y=y; this.target=target; this.amount=amount;
+    this.speed=3; this.active=true;
+  }
+  update(){
+    if(!this.target||this.target.hp<=0){ this.active=false; return; }
+    let dx=this.target.x-this.x, dy=this.target.y-this.y;
+    let dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<5){
+      this.target.hp += this.amount;
+      hitMarks.push(new HealMark(this.target.x,this.target.y));
+      this.active=false;
+    } else {
+      this.x+=(dx/dist)*this.speed;
+      this.y+=(dy/dist)*this.speed;
+    }
+  }
+  draw(){
+    ctx.strokeStyle="lime";
+    ctx.beginPath();
+    ctx.moveTo(this.x,this.y);
+    ctx.lineTo(this.x,this.y-4);
+    ctx.stroke();
+  }
+}
+
+class HitMark {
+  constructor(x,y){ this.x=x; this.y=y; this.life=15; }
+  update(){ this.life--; }
+  draw(){
+    ctx.lineWidth=5; ctx.strokeStyle="black";
+    ctx.beginPath();
+    ctx.moveTo(this.x-10,this.y-10); ctx.lineTo(this.x+10,this.y+10);
+    ctx.moveTo(this.x+10,this.y-10); ctx.lineTo(this.x-10,this.y+10);
+    ctx.stroke();
+    ctx.lineWidth=3; ctx.strokeStyle="red";
+    ctx.beginPath();
+    ctx.moveTo(this.x-10,this.y-10); ctx.lineTo(this.x+10,this.y+10);
+    ctx.moveTo(this.x+10,this.y-10); ctx.lineTo(this.x-10,this.y+10);
+    ctx.stroke();
+    ctx.lineWidth=1;
+  }
+}
+
+class HealMark {
+  constructor(x,y){ this.x=x; this.y=y; this.life=15; }
+  update(){ this.life--; }
+  draw(){
+    ctx.strokeStyle="lime";
+    ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.arc(this.x,this.y,14,0,Math.PI*2);
+    ctx.stroke();
+    ctx.lineWidth=1;
+  }
+}
+
+/* --- ユーティリティ --- */
 function inMeleeRange(u1,u2){ return (Math.abs(u1.lane-u2.lane)<=1 && Math.abs(u1.y-u2.y)<=u1.range); }
 function inUnitRange(u1,u2){ return (Math.abs(u1.lane-u2.lane)<=3 && Math.abs(u1.y-u2.y)<=u1.range); }
 
@@ -156,7 +228,7 @@ function startGame(){
     pendingUnitType=null;
   };
 
-  // 敵スポーン：ランダムで多種
+  // 敵スポーン
   setInterval(()=>{
     const enemyTypes=["goblin","orc","golem","shaman","wolf"];
     let type = enemyTypes[Math.floor(Math.random()*enemyTypes.length)];
@@ -175,7 +247,7 @@ function loop(){
 
   for(let u of [...playerUnits,...enemyUnits]){ u.update(); u.draw(); }
 
-  /* 戦闘処理（プレイヤー側） */
+  // プレイヤーユニットの行動
   for(let p of playerUnits){
     for(let e of enemyUnits){
       if(inMeleeRange(p,e)){
@@ -187,7 +259,6 @@ function loop(){
         projectiles.push(new Projectile(p.x,p.y-12,e,p.atk)); p.cooldown=60;
       }
     }
-    // 回復役の行動
     if(p.role==="healer"){
       for(let ally of playerUnits){
         if(ally!==p && ally.hp>0 && ally.hp<unitStats[ally.type].hp){
@@ -200,11 +271,11 @@ function loop(){
     }
   }
 
-  /* 敵の特殊行動 */
+  // 敵の特殊行動
   for(let e of enemyUnits){
     if(e.role==="shaman" && e.cooldown<=0){
       for(let p of playerUnits){
-        if(inUnitRange(e,p)){
+        if(p && inUnitRange(e,p)){
           p.hp -= e.atk;
           hitMarks.push(new HitMark(p.x,p.y));
         }
@@ -212,8 +283,10 @@ function loop(){
       e.cooldown=120;
     }
     if(e.role==="wolf" && e.cooldown<=0){
-      let target=playerUnits[Math.floor(Math.random()*playerUnits.length)];
-      if(target) projectiles.push(new Projectile(e.x,e.y+12,target,e.atk));
+      if(playerUnits.length>0){
+        let target=playerUnits[Math.floor(Math.random()*playerUnits.length)];
+        if(target) projectiles.push(new Projectile(e.x,e.y+12,target,e.atk));
+      }
       e.cooldown=60;
     }
   }
@@ -238,8 +311,6 @@ function loop(){
 }
 
 function chooseUnit(type){ pendingUnitType=type; }
-
-/* --- ここに Projectile, HealProjectile, HitMark, HealMark クラスは前回のコード通り配置してください --- */
 </script>
 </body>
 </html>
