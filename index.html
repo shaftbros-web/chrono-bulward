@@ -194,4 +194,104 @@ class SwingMark {
     ctx.lineWidth=3;
     ctx.strokeStyle=(this.side==="player")?"#88f":"#f88";
     ctx.beginPath(); ctx.arc(this.x,this.y,16,-Math.PI/3,0); ctx.stroke();
-    ctx.beginPath(); ctx.arc(this.x,this.y,12,0,
+    ctx.beginPath(); ctx.arc(this.x,this.y,12,0,Math.PI/3); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/* =====================
+   接触判定
+===================== */
+function inMeleeRange(u1,u2){
+  const laneDiff=Math.abs(u1.lane-u2.lane);
+  const dy=Math.abs(u1.y-u2.y);
+  if(laneDiff===0){ return dy<=24; }
+  else if(laneDiff===1){ return dy<=20; }
+  return false;
+}
+function inUnitRange(u1,u2){ let dx=(u1.lane-u2.lane)*(canvas.width/5); let dy=u1.y-u2.y; let dist=Math.sqrt(dx*dx+dy*dy); return dist<=u1.range; }
+
+function startGame(){
+  document.getElementById("menu").style.display="none";
+  document.getElementById("settings").style.display="none";
+  document.getElementById("title").style.display="none";
+  canvas.style.display="block"; document.getElementById("ui").style.display="block";
+  playerBaseHP=100; enemyBaseHP=100;
+  playerUnits=[]; enemyUnits=[]; projectiles=[]; hitMarks=[]; swingMarks=[];
+  canvas.onclick=(e)=>{ if(!pendingUnitType)return; let lane=Math.floor((e.clientX-canvas.getBoundingClientRect().left)/(canvas.width/5)); playerUnits.push(new Unit(pendingUnitType,"player",lane,canvas.height-40)); pendingUnitType=null; };
+  setInterval(()=>{ const enemyTypes=["goblin","orc","golem","shaman","phantom"]; let type=enemyTypes[Math.floor(Math.random()*enemyTypes.length)]; let lane=Math.floor(Math.random()*5); enemyUnits.push(new Unit(type,"enemy",lane,40)); },4000);
+  loop();
+}
+
+function loop(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle="#555"; for(let i=1;i<5;i++){ ctx.beginPath(); ctx.moveTo(i*canvas.width/5,0); ctx.lineTo(i*canvas.width/5,canvas.height); ctx.stroke(); }
+  ctx.fillStyle="white"; ctx.fillText(`自陣HP:${playerBaseHP}`,10,15); ctx.fillText(`敵陣HP:${enemyBaseHP}`,280,15);
+  for(let u of [...playerUnits,...enemyUnits]){ u.update(); u.draw(); }
+  for(let p of playerUnits){
+    for(let e of enemyUnits){
+      if(inMeleeRange(p,e)){
+        p.target=e; e.target=p;
+        if(p.cooldown<=0){
+          e.hp-=p.atk; hitMarks.push(new HitMark(e.x,e.y));
+          swingMarks.push(new SwingMark(p.x,p.y,"player"));
+          p.cooldown=30;
+        }
+        if(e.cooldown<=0){
+          p.hp-=e.atk; hitMarks.push(new HitMark(p.x,p.y));
+          swingMarks.push(new SwingMark(e.x,e.y,"enemy"));
+          e.cooldown=40;
+        }
+      } else {
+        if(p.role==="archer" && inUnitRange(p,e) && p.cooldown<=0){
+          projectiles.push(new Projectile(p.x,p.y-12,e,p.atk,"white"));
+          p.cooldown=60;
+        }
+      }
+    }
+    if(p.role==="healer" && p.cooldown<=0){
+      for(let ally of playerUnits){
+        if(ally!==p && ally.hp>0 && ally.hp<unitStats[ally.type].hp && inUnitRange(p,ally)){
+          projectiles.push(new HealProjectile(p.x,p.y-12,ally,p.atk));
+          p.cooldown=90;
+        }
+      }
+    }
+  }
+  for(let e of enemyUnits){
+    if(e.target&&e.target.hp>0){} else {
+      if(e.role==="shaman" && e.cooldown<=0){
+        if(playerUnits.length>0){
+          let target=playerUnits[Math.floor(Math.random()*playerUnits.length)];
+          if(inUnitRange(e,target)){
+            projectiles.push(new Projectile(e.x,e.y+12,target,e.atk,"purple"));
+            e.cooldown=80;
+          }
+        }
+      }
+      if(e.role==="phantom" && e.cooldown<=0){
+        if(playerUnits.length>0){
+          let target=playerUnits[Math.floor(Math.random()*playerUnits.length)];
+          if(inUnitRange(e,target)){
+            projectiles.push(new Projectile(e.x,e.y+12,target,e.atk,"yellow"));
+            e.cooldown=50;
+          }
+        }
+      }
+    }
+  }
+  for(let u of [...playerUnits,...enemyUnits]) if(u.cooldown>0) u.cooldown--;
+  for(let pr of projectiles){ pr.update(); pr.draw(); } projectiles=projectiles.filter(pr=>pr.active);
+  for(let h of hitMarks){ h.update(); h.draw(); } hitMarks=hitMarks.filter(h=>h.life>0);
+  for(let s of swingMarks){ s.update(); s.draw(); } swingMarks=swingMarks.filter(s=>s.life>0);
+  playerUnits=playerUnits.filter(u=>u.hp>0&&u.y>0); enemyUnits=enemyUnits.filter(u=>u.hp>0&&u.y<canvas.height);
+  for(let e of enemyUnits){ if(e.y>=canvas.height-30){ playerBaseHP-=e.atk; e.hp=0; } }
+  for(let p of playerUnits){ if(p.y<=30){ enemyBaseHP-=p.atk; p.hp=0; } }
+  if(playerBaseHP<=0){ ctx.fillStyle="red"; ctx.font="30px sans-serif"; ctx.fillText("GAME OVER",100,300); return; }
+  if(enemyBaseHP<=0){ ctx.fillStyle="yellow"; ctx.font="30px sans-serif"; ctx.fillText("VICTORY!",120,300); return; }
+  requestAnimationFrame(loop);
+}
+function chooseUnit(type){ pendingUnitType=type; }
+</script>
+</body>
+</html>
